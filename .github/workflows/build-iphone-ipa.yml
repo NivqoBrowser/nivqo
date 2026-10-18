@@ -1,0 +1,45 @@
+name: Build NIVQO iPhone IPA
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'NIVQO-iPhone-GitHub-Build-Source.zip'
+      - '.github/workflows/build-iphone-ipa.yml'
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Extract iPhone source
+        run: unzip -q NIVQO-iPhone-GitHub-Build-Source.zip -d source
+      - name: Test transfer protocol
+        working-directory: source/ios
+        run: swift test
+      - name: Build for a physical iPhone
+        run: |
+          set -euo pipefail
+          xcodebuild -project source/ios/NIVQO.xcodeproj -scheme NIVQO \
+            -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' build
+      - name: Package unsigned IPA for Sideloadly
+        run: |
+          set -euo pipefail
+          test -f build/Build/Products/Release-iphoneos/NIVQO.app/NIVQO
+          mkdir -p package/Payload artifacts
+          ditto build/Build/Products/Release-iphoneos/NIVQO.app package/Payload/NIVQO.app
+          (cd package && zip -qry ../artifacts/NIVQO-iPhone-0.7.0-unsigned.ipa Payload)
+          (cd artifacts && shasum -a 256 *.ipa > SHA256SUMS.txt)
+          echo 'Unsigned device build. Install through Sideloadly, which signs it with your Apple account. This build has not been tested on a physical iPhone.' > artifacts/READ-ME.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NIVQO-iPhone-for-Sideloadly
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
