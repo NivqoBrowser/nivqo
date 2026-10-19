@@ -19,15 +19,6 @@ jobs:
           persist-credentials: false
       - name: Extract iPhone source
         run: unzip -q NIVQO-iPhone-GitHub-Build-Source.zip -d source
-      - name: Inspect homepage Swift source
-        run: |
-          echo '=== SOURCE FILES ==='
-          find source/ios/NIVQO -name '*.swift' -maxdepth 4 -type f -print
-          echo '=== HOMEPAGE CODE ==='
-          for f in $(find source/ios/NIVQO -name '*.swift' -type f); do
-            echo "=== FILE $f ==="
-            head -n 360 "$f"
-          done
       - name: Install NIVQO iPhone app icon
         run: |
           set -euo pipefail
@@ -50,6 +41,13 @@ jobs:
           }
           JSON
           test -s "$iconset/AppIcon-1024.png"
+          # Keep the in-app new-tab homepage in sync with the official NIVQO icon.
+          # BrowserView.swift displays the Brand asset above the NIVQO heading.
+          homepage_logo=source/ios/NIVQO/Assets.xcassets/Brand.imageset/brand.png
+          test -f "$homepage_logo"
+          sips -s format png -z 512 512 "$iconset/AppIcon-1024.png" --out "$homepage_logo" >/dev/null
+          test -s "$homepage_logo"
+          echo "NIVQO homepage and iOS app icon branding installed."
       - name: Test transfer protocol
         working-directory: source/ios
         run: swift test
