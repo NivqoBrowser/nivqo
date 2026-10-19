@@ -6,6 +6,7 @@ on:
     paths:
       - 'NIVQO-iPhone-GitHub-Build-Source.zip'
       - '.github/workflows/build-iphone-ipa.yml'
+      - 'branding/NIVQO-AppIcon.jpg.b64'
 permissions:
   contents: read
 jobs:
@@ -18,6 +19,30 @@ jobs:
           persist-credentials: false
       - name: Extract iPhone source
         run: unzip -q NIVQO-iPhone-GitHub-Build-Source.zip -d source
+      - name: Install NIVQO iPhone app icon
+        run: |
+          set -euo pipefail
+          iconset=source/ios/NIVQO/Assets.xcassets/AppIcon.appiconset
+          mkdir -p "$iconset"
+          # The approved NIVQO ribbon-N artwork is stored as base64 for reliable text-only GitHub updates.
+          base64 -D -i branding/NIVQO-AppIcon.jpg.b64 -o "$iconset/NIVQO-source.jpg"
+          # iOS needs a 1024 x 1024 opaque PNG in the app icon asset catalogue.
+          sips -s format png -z 1024 1024 "$iconset/NIVQO-source.jpg" --out "$iconset/AppIcon-1024.png" >/dev/null
+          rm "$iconset/NIVQO-source.jpg"
+          cat > "$iconset/Contents.json" <<'JSON'
+          {
+            "images": [
+              {
+                "filename": "AppIcon-1024.png",
+                "idiom": "universal",
+                "platform": "ios",
+                "size": "1024x1024"
+              }
+            ],
+            "info": { "author": "xcode", "version": 1 }
+          }
+          JSON
+          test -s "$iconset/AppIcon-1024.png"
       - name: Test transfer protocol
         working-directory: source/ios
         run: swift test
@@ -27,11 +52,24 @@ jobs:
           xcodebuild -project source/ios/NIVQO.xcodeproj -scheme NIVQO \
             -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
             -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-            CODE_SIGN_IDENTITY='' build
+            CODE_SIGN_IDENTITY='' ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon build
       - name: Package unsigned IPA for Sideloadly
         run: |
           set -euo pipefail
           test -f build/Build/Products/Release-iphoneos/NIVQO.app/NIVQO
+          plutil -extract CFBundleIcons.CFBundlePrimaryIcon.CFBundleIconName raw \
+            -o - build/Build/Products/Release-iphoneos/NIVQO.app/Info.plist | grep -q '^AppIcon
+          ditto build/Build/Products/Release-iphoneos/NIVQO.app package/Payload/NIVQO.app
+          (cd package && zip -qry ../artifacts/NIVQO-iPhone-with-icon-unsigned.ipa Payload)
+          (cd artifacts && shasum -a 256 *.ipa > SHA256SUMS.txt)
+          echo 'Unsigned device build. Install through Sideloadly, which signs it with your Apple account. This build has not been tested on a physical iPhone.' > artifacts/READ-ME.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NIVQO-iPhone-for-Sideloadly
+          path: artifacts/
+          if-no-files-found: error
+          retention-days: 14
+
           mkdir -p package/Payload artifacts
           ditto build/Build/Products/Release-iphoneos/NIVQO.app package/Payload/NIVQO.app
           (cd package && zip -qry ../artifacts/NIVQO-iPhone-0.7.0-unsigned.ipa Payload)
