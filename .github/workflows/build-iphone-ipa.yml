@@ -19,6 +19,15 @@ jobs:
           persist-credentials: false
       - name: Extract iPhone source
         run: unzip -q NIVQO-iPhone-GitHub-Build-Source.zip -d source
+      - name: Inspect homepage Swift source
+        run: |
+          echo '=== SOURCE FILES ==='
+          find source/ios/NIVQO -name '*.swift' -maxdepth 4 -type f -print
+          echo '=== HOMEPAGE CODE ==='
+          for f in $(find source/ios/NIVQO -name '*.swift' -type f); do
+            echo "=== FILE $f ==="
+            head -n 360 "$f"
+          done
       - name: Install NIVQO iPhone app icon
         run: |
           set -euo pipefail
