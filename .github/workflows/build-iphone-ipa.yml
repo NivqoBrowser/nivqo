@@ -6,7 +6,7 @@ on:
     paths:
       - 'NIVQO-iPhone-GitHub-Build-Source.zip'
       - 'mobile/patches/nivqo-v0.8.2.patch.gz.b64'
-      - 'mobile/patches/nivqo-v0.8.3.patch.gz.b64'
+      - 'mobile/patches/nivqo-v0.8.4.patch.gz.b64'
       - '.github/workflows/build-iphone-ipa.yml'
       - 'branding/NIVQO-AppIcon.jpg.b64'
 permissions:
@@ -28,13 +28,14 @@ jobs:
           (cd source && patch -p1 --forward < /tmp/nivqo-v082.patch)
           grep -q 'MARKETING_VERSION = 0.8.2' source/ios/NIVQO.xcodeproj/project.pbxproj
           grep -q 'frame(height: 3)' source/ios/NIVQO/BrowserView.swift
-      - name: Apply NIVQO iPhone v0.8.3 address autocomplete
+      - name: Apply NIVQO iPhone v0.8.4 search history
         run: |
           set -euo pipefail
-          base64 -D -i mobile/patches/nivqo-v0.8.3.patch.gz.b64 | gzip -d > /tmp/nivqo-v083.patch
-          (cd source && patch -p1 --forward < /tmp/nivqo-v083.patch)
-          grep -q 'MARKETING_VERSION = 0.8.3' source/ios/NIVQO.xcodeproj/project.pbxproj
-          grep -q 'nivqo.addressSuggestions' source/ios/NIVQO/BrowserView.swift
+          base64 -D -i mobile/patches/nivqo-v0.8.4.patch.gz.b64 | gzip -d > /tmp/nivqo-v084.patch
+          (cd source && patch -p1 --forward < /tmp/nivqo-v084.patch)
+          grep -q 'MARKETING_VERSION = 0.8.4' source/ios/NIVQO.xcodeproj/project.pbxproj
+          grep -q 'Recent searches' source/ios/NIVQO/BrowserView.swift
+          grep -q 'SearchHistory.recording' source/ios/NIVQO/BrowserModel.swift
       - name: Install NIVQO iPhone app icon
         run: |
           set -euo pipefail
@@ -82,7 +83,7 @@ jobs:
             -o - build/Build/Products/Release-iphoneos/NIVQO.app/Info.plist | grep -Fxq 'AppIcon'
           mkdir -p package/Payload artifacts
           ditto build/Build/Products/Release-iphoneos/NIVQO.app package/Payload/NIVQO.app
-          (cd package && zip -qry ../artifacts/NIVQO-iPhone-v0.8.3-unsigned.ipa Payload)
+          (cd package && zip -qry ../artifacts/NIVQO-iPhone-v0.8.4-unsigned.ipa Payload)
           (cd artifacts && shasum -a 256 *.ipa > SHA256SUMS.txt)
           echo 'Unsigned device build. Install through Sideloadly, which signs it with your Apple account. This build has not been tested on a physical iPhone.' > artifacts/READ-ME.txt
       - uses: actions/upload-artifact@v4
