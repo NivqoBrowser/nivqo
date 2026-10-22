@@ -1,0 +1,22 @@
+{
+  "clientPrivate": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE",
+  "serverPublic": "MCowBQYDK2VuAyEAzo060cy2M-x7cMF4FKXHbs0CloUFDTRHRboFhw5YfVk",
+  "secret": "AwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwMDAwM",
+  "clientTransmit": "xZcD5o_fMEaXp8ra792e9ipJDebplFjZRkpKXyHkmQA",
+  "clientReceive": "EWKvBxPNLQ5Upp6Lrmv3tdHULZR31dGfGAOZnQdCSRE",
+  "serverProof": "gCHeRcmFmRz7NjSGGZXXFzHItxJ4NNj04r-o0xr8biM",
+  "clientProof": "hdEiEp4ZwAXK9LD0IhOC2I7y9r5WxD24lBavXCtOrcE",
+  "serverFrame": {
+    "kind": "sealed",
+    "seq": 1,
+    "iv": "BAQEBAQEBAQEBAQE",
+    "data": "QhNknkS1paG-bokuLNJ-aOtOifdCDjW5zq34CjTkHhvfoUsfoRWlQEsTXeeVflrB5jUNkoIPOEZNS-BVf9-UCdmH",
+    "tag": "5TqgQH1wmki0d5WmC-Eipw"
+  },
+  "payload": {
+    "data": {
+      "text": "NIVQO desktop to iPhone ✓"
+    },
+    "type": "drop-text"
+  }
+}

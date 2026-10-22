@@ -2,22 +2,50 @@
 
 **The Web. Your Way.**
 
-*A smarter, faster, more connected browsing experience.*
+A smarter, faster, more connected browsing experience within The Willard Group Ltd.
 
-NIVQO is a modern browser project within **The Willard Group Ltd**.
+## iPhone v0.8.5 — Bottom Bar Refresh
+
+The iPhone app now builds directly from the reviewable Swift source in `mobile/ios`.
+The original source ZIP and `mobile/patches` remain historical inputs; the workflow
+no longer extracts or reapplies them. The source was reconstructed from the ZIP
+plus the active v0.8.2 and v0.8.4 patches. The superseded v0.8.3 URL-completion
+patch is deliberately not applied. No prior v0.8.5 recovery patch was present on
+`main` or the existing feature branch when this update was prepared.
+
+- Full-width websites with a floating bottom address/search pill.
+- Back, Address/Search, Flow, Spaces, Tabs and Menu; two rows on narrow phones.
+- Scroll down for compact controls; scroll up or tap the compact domain to reveal.
+  Flow and Spaces remain available in the compact strip.
+- Keyboard safe-area layout, 44-point controls, VoiceOver labels and Reduce Motion.
+- Blank tabs ignore WebKit process termination. Real pages receive at most one
+  automatic recovery attempt per explicit navigation; further failures show a
+  nonblocking Reload notice. Background and closed tabs never auto-reload.
+- The existing per-Space search-phrase history remains; no URL autocomplete.
+
+The bundle identifier remains `dev.nivqo.iphone`. Personal website storage,
+Space data identifiers, preferences, bookmarks, history, saved accounts and
+normal/private isolation retain their existing storage formats. WebKit uses its
+ordinary JavaScript, cookies and user agent; this is not a challenge bypass.
 
 ## Official visual identity
 
-The approved official logo, confirmed on **19 October 2026**, is the flat, stylised **N** mark with a **cyan-to-electric-blue gradient** on a **deep midnight-blue background**, as provided by the brand owner. It replaces earlier icon concepts and must not be redesigned or swapped with a different N mark.
+The approved cyan-to-blue **N** on midnight blue is preserved byte-for-byte in
+`branding/NIVQO-AppIcon.jpg.b64`, including the artwork correction committed in
+`5ba473c`. That asset was installed after the earlier README warning about an
+outdated logo. It supplies both the app icon and homepage image. Do not redesign
+or replace the mark.
 
-- **Name:** NIVQO
-- **Official slogan:** The Web. Your Way.
-- **Positioning:** A smarter, faster, more connected browsing experience.
-- **Brand palette:** Midnight blue, electric cyan and vivid blue.
-- **Product features:** NIVQO Flow, NIVQO Drop, NIVQO Spaces, NIVQO Shield, NIVQO Boost and NIVQO Assist.
+## Build and install
 
-> **Asset status:** The repo's existing `branding/NIVQO-AppIcon.jpg.b64` is a prior icon and is **not** the newly approved logo. Do not treat it as the approved master. The owner's approved PNG must replace this asset before building or distributing a newly branded app.
+Open [Build NIVQO iPhone IPA](https://github.com/NivqoBrowser/nivqo/actions/workflows/build-iphone-ipa.yml).
+Choose a successful v0.8.5 run and download **NIVQO-iPhone-for-Sideloadly** from
+its **Artifacts** section. Extract the ZIP and open
+`NIVQO-iPhone-v0.8.5-unsigned.ipa` in Sideloadly. Keep the same Apple signing
+account and installed bundle identifier as the previous installation. Keep the
+existing app installed to retain its local data.
 
-## Release considerations
-
-The iPhone build workflow installs the source branding asset as both the iOS app icon and the in-app homepage logo. Once the approved PNG is committed in a supported format, regenerate and test the iPhone IPA. Windows and macOS applications, websites, and marketing materials need their own verified branding updates and release workflows; a GitHub repository update alone does not publish those applications.
+The workflow tests Swift logic, builds simulator/device targets, and verifies the
+packaged IPA. This is an unsigned iPhone build for Sideloadly, not an App Store
+release. A successful build does not establish physical-device functionality.
+See [iPhone build and verification notes](mobile/ios/README.md).

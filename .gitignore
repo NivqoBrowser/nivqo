@@ -1,0 +1,8 @@
+# Local Xcode and Swift build outputs
+.DS_Store
+build/
+build-simulator/
+package/
+artifacts/
+**/.build/
+**/xcuserdata/

@@ -1,45 +1,54 @@
 name: Build NIVQO iPhone IPA
+
 on:
   workflow_dispatch:
   push:
     branches: [main]
     paths:
-      - 'NIVQO-iPhone-GitHub-Build-Source.zip'
-      - 'mobile/patches/nivqo-v0.8.2.patch.gz.b64'
-      - 'mobile/patches/nivqo-v0.8.4.patch.gz.b64'
+      - 'mobile/ios/**'
+      - 'mobile/ci/**'
       - '.github/workflows/build-iphone-ipa.yml'
       - 'branding/NIVQO-AppIcon.jpg.b64'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'mobile/ios/**'
+      - 'mobile/ci/**'
+      - '.github/workflows/build-iphone-ipa.yml'
+      - 'branding/NIVQO-AppIcon.jpg.b64'
+
 permissions:
   contents: read
+
+concurrency:
+  group: iphone-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_VERSION: '0.8.5'
+  APP_BUILD: '12'
+
 jobs:
   build:
     runs-on: macos-15
-    timeout-minutes: 25
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v6
         with:
           persist-credentials: false
-      - name: Extract iPhone source
-        run: unzip -q NIVQO-iPhone-GitHub-Build-Source.zip -d source
-      - name: Apply NIVQO iPhone v0.8.2 update
+      - name: Report Apple toolchain
+        run: |
+          xcodebuild -version
+          swift --version
+      # mobile/ios is the authoritative source. The ZIP and patches are retained
+      # only as historical inputs; applying them here would undo current fixes.
+      - name: Install approved NIVQO branding
         run: |
           set -euo pipefail
-          base64 -D -i mobile/patches/nivqo-v0.8.2.patch.gz.b64 | gzip -d > /tmp/nivqo-v082.patch
-          (cd source && patch -p1 --forward < /tmp/nivqo-v082.patch)
-          grep -q 'MARKETING_VERSION = 0.8.2' source/ios/NIVQO.xcodeproj/project.pbxproj
-          grep -q 'frame(height: 3)' source/ios/NIVQO/BrowserView.swift
-      - name: Apply NIVQO iPhone v0.8.4 search history
-        run: |
-          set -euo pipefail
-          base64 -D -i mobile/patches/nivqo-v0.8.4.patch.gz.b64 | gzip -d > /tmp/nivqo-v084.patch
-          (cd source && patch -p1 --forward < /tmp/nivqo-v084.patch)
-          grep -q 'MARKETING_VERSION = 0.8.4' source/ios/NIVQO.xcodeproj/project.pbxproj
-          grep -q 'Recent searches' source/ios/NIVQO/BrowserView.swift
-          grep -q 'SearchHistory.recording' source/ios/NIVQO/BrowserModel.swift
-      - name: Install NIVQO iPhone app icon
-        run: |
-          set -euo pipefail
-          iconset=source/ios/NIVQO/Assets.xcassets/AppIcon.appiconset
+          iconset=mobile/ios/NIVQO/Assets.xcassets/AppIcon.appiconset
           mkdir -p "$iconset"
           base64 -D -i branding/NIVQO-AppIcon.jpg.b64 -o "$iconset/NIVQO-source.jpg"
           sips -s format png -z 1024 1024 "$iconset/NIVQO-source.jpg" --out "$iconset/AppIcon-1024.png" >/dev/null
@@ -58,20 +67,29 @@ jobs:
           }
           JSON
           test -s "$iconset/AppIcon-1024.png"
-          # Keep the in-app new-tab homepage in sync with the official NIVQO icon.
-          # BrowserView.swift displays the Brand asset above the NIVQO heading.
-          homepage_logo=source/ios/NIVQO/Assets.xcassets/Brand.imageset/brand.png
+          homepage_logo=mobile/ios/NIVQO/Assets.xcassets/Brand.imageset/brand.png
           test -f "$homepage_logo"
           sips -s format png -z 512 512 "$iconset/AppIcon-1024.png" --out "$homepage_logo" >/dev/null
           test -s "$homepage_logo"
-          echo "NIVQO homepage and iOS app icon branding installed."
-      - name: Test transfer protocol
-        working-directory: source/ios
+      - name: Test browser data, recovery policy and transfer protocol
+        working-directory: mobile/ios
         run: swift test
+      - name: Compile for iPhone Simulator
+        run: |
+          set -euo pipefail
+          xcodebuild -project mobile/ios/NIVQO.xcodeproj -scheme NIVQO \
+            -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath build-simulator CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY='' ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon build
+      - name: Launch the home page in iPhone Simulator
+        run: |
+          python3 mobile/ci/simulator_smoke.py \
+            build-simulator/Build/Products/Debug-iphonesimulator/NIVQO.app \
+            --output artifacts/verification
       - name: Build for a physical iPhone
         run: |
           set -euo pipefail
-          xcodebuild -project source/ios/NIVQO.xcodeproj -scheme NIVQO \
+          xcodebuild -project mobile/ios/NIVQO.xcodeproj -scheme NIVQO \
             -configuration Release -sdk iphoneos -destination 'generic/platform=iOS' \
             -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY='' ASSETCATALOG_COMPILER_APPICON_NAME=AppIcon build
@@ -79,13 +97,36 @@ jobs:
         run: |
           set -euo pipefail
           test -f build/Build/Products/Release-iphoneos/NIVQO.app/NIVQO
-          plutil -extract CFBundleIcons.CFBundlePrimaryIcon.CFBundleIconName raw \
-            -o - build/Build/Products/Release-iphoneos/NIVQO.app/Info.plist | grep -Fxq 'AppIcon'
           mkdir -p package/Payload artifacts
           ditto build/Build/Products/Release-iphoneos/NIVQO.app package/Payload/NIVQO.app
-          (cd package && zip -qry ../artifacts/NIVQO-iPhone-v0.8.4-unsigned.ipa Payload)
+          (cd package && zip -qry "../artifacts/NIVQO-iPhone-v${APP_VERSION}-unsigned.ipa" Payload)
+      - name: Verify packaged IPA
+        run: |
+          set -euo pipefail
+          python3 mobile/ci/verify_ipa.py "artifacts/NIVQO-iPhone-v${APP_VERSION}-unsigned.ipa" \
+            --bundle-id dev.nivqo.iphone --version "$APP_VERSION" --build "$APP_BUILD" \
+            --report artifacts/BUILD-VERIFICATION.txt
           (cd artifacts && shasum -a 256 *.ipa > SHA256SUMS.txt)
-          echo 'Unsigned device build. Install through Sideloadly, which signs it with your Apple account. This build has not been tested on a physical iPhone.' > artifacts/READ-ME.txt
+          cat > artifacts/READ-ME.txt <<EOF
+          NIVQO iPhone ${APP_VERSION} (build ${APP_BUILD})
+          Repository: ${GITHUB_REPOSITORY}
+          Commit: ${GITHUB_SHA}
+          Build: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}
+
+          Extract the downloaded GitHub artifact ZIP, then open
+          NIVQO-iPhone-v${APP_VERSION}-unsigned.ipa in Sideloadly.
+          Sideloadly signs the unsigned device build with your Apple account.
+          Keep the same signing account and installed bundle identifier used for
+          your existing NIVQO app. Do not uninstall it before updating if you want
+          to preserve local browsing data. The source bundle ID is dev.nivqo.iphone.
+
+          This workflow runs Swift unit tests, launches the home page in iPhone
+          Simulator, builds for a physical iPhone and verifies the packaged IPA.
+          The verification folder contains the simulator screenshot. This does
+          not verify interactive browser flows. The workflow does not run the
+          app on a physical iPhone. See mobile/ios/README.md for device checks.
+          EOF
+          cat artifacts/BUILD-VERIFICATION.txt >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: NIVQO-iPhone-for-Sideloadly
