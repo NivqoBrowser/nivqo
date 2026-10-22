@@ -367,7 +367,7 @@ private struct BrowserPage: View {
                             Text("The web, on your terms.").font(.title3.weight(.semibold))
                             Text(tab.isPrivate ? "PRIVATE TAB · NO PERSISTENT WEBSITE STORAGE" : "THE WEB. YOUR WAY.").font(.caption2.weight(.semibold)).tracking(1.5).foregroundStyle(.secondary).multilineTextAlignment(.center)
                         }
-                        Button(action: beginSearch) label: { Label("Search anything or enter a URL", systemImage: "magnifyingglass").font(.subheadline).frame(maxWidth: .infinity).padding(18).background(Color.nivqoPanel).clipShape(RoundedRectangle(cornerRadius: 16)) }.padding(.horizontal, 24)
+                        Button(action: beginSearch) { Label("Search anything or enter a URL", systemImage: "magnifyingglass").font(.subheadline).frame(maxWidth: .infinity).padding(18).background(Color.nivqoPanel).clipShape(RoundedRectangle(cornerRadius: 16)) }.padding(.horizontal, 24)
                         LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                             feature("Flow + Drop", "Move tabs & files", "qrcode.viewfinder", openFlow)
                             feature("Spaces", "Separate identities", "square.grid.2x2") { openPanel("spaces") }
