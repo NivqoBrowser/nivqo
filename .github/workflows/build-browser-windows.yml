@@ -1,0 +1,67 @@
+name: Browser - Windows Installer
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'desktop/NIVQO-Desktop-v0.8.0-Source.zip'
+      - '.github/workflows/build-browser-windows.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    name: NIVQO Browser Windows
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Extract desktop browser source
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $source='desktop/NIVQO-Desktop-v0.8.0-Source.zip'
+          if (-not (Test-Path -LiteralPath $source)) { throw 'Source archive is missing' }
+          Expand-Archive -LiteralPath $source -DestinationPath desktop-source -Force
+          if (-not (Test-Path -LiteralPath 'desktop-source/package-lock.json')) { throw 'Source package is incomplete' }
+          $pkg=Get-Content -Raw desktop-source/package.json | ConvertFrom-Json
+          if ($pkg.version -ne '0.8.0') { throw 'Expected NIVQO Desktop v0.8.0 source' }
+          if ($pkg.build.appId -ne 'dev.nivqo.browseralpha') { throw 'Do not change the existing application ID' }
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: desktop-source/package-lock.json
+      - name: Install locked dependencies
+        working-directory: desktop-source
+        run: npm ci
+      - name: Check source and test Flow, QR, imports and privacy handling
+        working-directory: desktop-source
+        run: npm run verify
+      - name: Build Windows x64 installer
+        working-directory: desktop-source
+        run: npm run dist:win -- --publish never
+      - name: Verify installer and hashes
+        shell: pwsh
+        run: |
+          $ErrorActionPreference='Stop'
+          $exe=Get-ChildItem -Path desktop-source/dist -Filter 'NIVQO-Browser-0.8.0-win-x64.exe' -File | Select-Object -First 1
+          if (-not $exe) { throw 'Windows installer was not produced' }
+          $hash=Get-FileHash -Algorithm SHA256 -LiteralPath $exe.FullName
+          "$($hash.Hash)  $($exe.Name)" | Set-Content -Encoding ascii desktop-source/dist/SHA256SUMS.txt
+          $sign=Get-AuthenticodeSignature -LiteralPath $exe.FullName
+          "Authenticode signature: $($sign.Status)" | Set-Content -Encoding ascii desktop-source/dist/SIGNATURE-STATUS.txt
+          if ($sign.Status -ne 'Valid') { Write-Warning 'Unsigned alpha installer: Windows SmartScreen may warn during installation.' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NIVQO-Browser-Windows-v0.8.0
+          path: |
+            desktop-source/dist/NIVQO-Browser-0.8.0-win-x64.exe
+            desktop-source/dist/SHA256SUMS.txt
+            desktop-source/dist/SIGNATURE-STATUS.txt
+          if-no-files-found: error
+          retention-days: 14
