@@ -8,6 +8,7 @@ struct BrowserSpace: Identifiable, Codable {
     static let defaults = [
         BrowserSpace(id: "personal", name: "Personal", hex: "27c9ff", dataID: UUID(uuidString: "9F483849-40D2-4548-B115-911B50F00A01")!),
         BrowserSpace(id: "work", name: "Work", hex: "8a83ff", dataID: UUID(uuidString: "9F483849-40D2-4548-B115-911B50F00A02")!),
+        BrowserSpace(id: "gaming", name: "Gaming", hex: "ff5da8", dataID: UUID(uuidString: "9F483849-40D2-4548-B115-911B50F00A04")!),
         BrowserSpace(id: "shopping", name: "Shopping", hex: "61d7ac", dataID: UUID(uuidString: "9F483849-40D2-4548-B115-911B50F00A03")!)
     ]
 }
