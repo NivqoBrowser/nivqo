@@ -295,15 +295,19 @@ final class BrowserModel: ObservableObject {
         for tab in tabs { tab.setSelected(tab.id == selectedID) }
     }
     init() {
-        spaces = Self.read("nivqo.spaces") ?? BrowserSpace.defaults
-        // Existing installations receive Gaming without overwriting their Spaces.
-        if !spaces.contains(where: { $0.id == "gaming" }) {
-            spaces.append(BrowserSpace(id: "gaming", name: "Gaming", hex: "ff5da8",
-                                       dataID: UUID(uuidString: "9F483849-40D2-4548-B115-911B50F00A04")!))
-            if let data = try? JSONEncoder().encode(spaces) {
+        var preparedSpaces: [BrowserSpace] = Self.read("nivqo.spaces") ?? BrowserSpace.defaults
+        // Migrate existing installs using local variables before self is initialized.
+        // Never replace cookies, bookmarks, existing profiles, or their storage IDs.
+        if !preparedSpaces.contains(where: { $0.id == "gaming" }) {
+            let gaming = BrowserSpace(id: "gaming", name: "Gaming", hex: "ff5da8",
+                                      dataID: UUID(uuidString: "9F483849-40D2-4548-B115-911B50F00A04")!)
+            let index = preparedSpaces.firstIndex(where: { $0.id == "shopping" }) ?? preparedSpaces.count
+            preparedSpaces.insert(gaming, at: index)
+            if let data = try? JSONEncoder().encode(preparedSpaces) {
                 UserDefaults.standard.set(data, forKey: "nivqo.spaces")
             }
         }
+        spaces = preparedSpaces
         activeSpaceID = "personal"
         history = Self.read("nivqo.history") ?? []
         searchHistory = Self.read("nivqo.searchHistory.v1") ?? []
