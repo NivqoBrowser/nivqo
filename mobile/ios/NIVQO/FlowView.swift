@@ -23,11 +23,32 @@ struct FlowView: View {
     @State private var filename = "Transfer.bin"
     @State private var pendingSave: IncomingTransfer?
     @State private var clipboardNotice = false
+    @State private var showDeviceInfo = false
 
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    VStack(alignment: .leading, spacing: 13) {
+                        Text("Quick Actions").font(.headline)
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                            quickAction("Send Current Tab", "Send to your devices", "square.on.square") {
+                                if let url = browser.selected.url {
+                                    flow.sendTab(url: url, title: browser.selected.title)
+                                }
+                            }
+                            .disabled(!flow.connected || browser.selected.isPrivate || browser.selected.url == nil || flow.sending)
+                            quickAction("Send Link", "Share URL with Flow", "link") {
+                                if let url = browser.selected.url { flow.sendText(url.absoluteString) }
+                            }
+                            .disabled(!flow.connected || browser.selected.isPrivate || browser.selected.url == nil || flow.sending)
+                            quickAction("Drop Files", "Send a local file", "square.and.arrow.up") { filePicker = true }
+                                .disabled(!flow.connected || flow.sending)
+                            quickAction("Paired Devices", "Connection status", "desktopcomputer") {
+                                showDeviceInfo = true
+                            }
+                        }
+                    }
                     Text("Pair with a computer on the same Wi-Fi. Keep NIVQO open on both devices while transferring.")
                         .foregroundStyle(.secondary)
                     Label(flow.status, systemImage: flow.connected ? "checkmark.shield" : "link")
@@ -127,7 +148,27 @@ struct FlowView: View {
                     Button("OK") { flow.errorMessage = nil }
                 } message: { Text(flow.errorMessage ?? "") }
                 .alert("Text copied", isPresented: $clipboardNotice) { Button("OK", role: .cancel) {} } message: { Text("The copied text expires in two minutes and stays on this device’s clipboard.") }
+                .alert("Paired devices", isPresented: $showDeviceInfo) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(flow.status + ". Pair a desktop on the same Wi-Fi before sending.")
+                }
         }
+    }
+    private func quickAction(_ title: String, _ subtitle: String, _ icon: String,
+                             action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(alignment: .leading, spacing: 8) {
+                Image(systemName: icon).font(.title2).foregroundStyle(.nivqoCyan)
+                Text(title).font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.primary).multilineTextAlignment(.leading)
+                Text(subtitle).font(.caption2).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading)
+            }
+            .frame(maxWidth: .infinity, minHeight: 104, alignment: .leading)
+            .padding(13)
+            .background(Color.nivqoPanel, in: RoundedRectangle(cornerRadius: 15))
+        }.buttonStyle(.plain)
     }
     private func acceptLabel(_ item: IncomingTransfer) -> String {
         switch item.content { case .tab: return "Open tab"; case .text: return "Copy text"; case .file: return "Save file" }
