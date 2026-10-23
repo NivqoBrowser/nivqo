@@ -40,7 +40,10 @@ def main():
     try:
         simctl("boot", device)
         simctl("bootstatus", device, "-b", timeout=240)
-        simctl("status_bar", device, "override", "--time", "9:41", "--batteryState", "charged", "--batteryLevel", "100")
+        # Do not override the system clock/battery here: GitHub-hosted macOS
+        # simulators can hang indefinitely in simctl status_bar despite a
+        # successful boot. It is cosmetic and not part of the launch test.
+        print("Simulator booted; installing NIVQO without status-bar customisation.", flush=True)
         simctl("install", device, str(args.app.resolve()))
         launch = simctl("launch", "--terminate-running-process", device, "dev.nivqo.iphone")
         # Allow the initial SwiftUI home page to render before checking survival.
