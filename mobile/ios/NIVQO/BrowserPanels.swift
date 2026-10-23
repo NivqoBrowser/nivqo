@@ -185,7 +185,7 @@ struct BrowserPanels: View {
                 Text("Saved searches and visited websites stay on this iPhone, separated by Space. Private tabs never save either kind of history. Normal tabs can be restored after closing the app; private tabs are not restored.").font(.footnote).foregroundStyle(.secondary)
             }
             Section("Manual updates") {
-                Text("NIVQO \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.8.5") · iPhone")
+                Text("NIVQO \(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.9.0") · iPhone")
                 Text("Install a newer IPA in Sideloadly using the same Apple account and bundle ID. Keep the existing app installed to preserve its data. Free signing needs periodic renewal.").font(.subheadline)
                 Link("Open NIVQO builds", destination: URL(string: "https://github.com/NivqoBrowser/nivqo/actions")!)
             }
