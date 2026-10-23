@@ -25,8 +25,12 @@ final class ImportParserTests: XCTestCase {
         XCTAssertThrowsError(try ImportParser.parse(Data(repeating: 65, count: ImportParser.limit + 1), passwords: true, spaceID: "work"))
     }
     func testDefaultSpacesHaveStableSeparateProfiles() {
-        XCTAssertEqual(Set(BrowserSpace.defaults.map(\.dataID)).count, 3)
+        XCTAssertEqual(BrowserSpace.defaults.count, 4)
+        XCTAssertEqual(Set(BrowserSpace.defaults.map(\.dataID)).count, 4)
+        XCTAssertEqual(Set(BrowserSpace.defaults.map(\.id)).count, 4)
+        XCTAssertEqual(BrowserSpace.defaults.map(\.id), ["personal", "work", "gaming", "shopping"])
         XCTAssertEqual(BrowserSpace.defaults[1].hex, "8a83ff")
-        XCTAssertEqual(BrowserSpace.defaults[2].hex, "61d7ac")
+        XCTAssertEqual(BrowserSpace.defaults[2].hex, "ff5da8")
+        XCTAssertEqual(BrowserSpace.defaults[3].hex, "61d7ac")
     }
 }
