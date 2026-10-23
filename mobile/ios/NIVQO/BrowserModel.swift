@@ -296,6 +296,14 @@ final class BrowserModel: ObservableObject {
     }
     init() {
         spaces = Self.read("nivqo.spaces") ?? BrowserSpace.defaults
+        // Existing installations receive Gaming without overwriting their Spaces.
+        if !spaces.contains(where: { $0.id == "gaming" }) {
+            spaces.append(BrowserSpace(id: "gaming", name: "Gaming", hex: "ff5da8",
+                                       dataID: UUID(uuidString: "9F483849-40D2-4548-B115-911B50F00A04")!))
+            if let data = try? JSONEncoder().encode(spaces) {
+                UserDefaults.standard.set(data, forKey: "nivqo.spaces")
+            }
+        }
         activeSpaceID = "personal"
         history = Self.read("nivqo.history") ?? []
         searchHistory = Self.read("nivqo.searchHistory.v1") ?? []
@@ -326,6 +334,14 @@ final class BrowserModel: ObservableObject {
     func recentSearches(matching input: String, in tab: BrowserTab) -> [SearchHistoryItem] {
         guard saveHistory, !tab.isPrivate else { return [] }
         return SearchHistory.matching(input, spaceID: tab.spaceID, in: searchHistory)
+    }
+    func clearSearchHistory() {
+        searchHistory.removeAll { $0.spaceID == activeSpaceID }
+        persist(searchHistory, "nivqo.searchHistory.v1")
+    }
+    func removeSearch(_ id: UUID) {
+        searchHistory.removeAll { $0.id == id && $0.spaceID == activeSpaceID }
+        persist(searchHistory, "nivqo.searchHistory.v1")
     }
     var visibleAccounts: [SavedAccount] { accounts.filter { $0.spaceID == activeSpaceID } }
     private static func read<T: Decodable>(_ key: String) -> T? { UserDefaults.standard.data(forKey: key).flatMap { try? JSONDecoder().decode(T.self, from: $0) } }
