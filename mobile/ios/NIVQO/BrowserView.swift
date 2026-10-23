@@ -187,7 +187,7 @@ private struct BrowserPage: View {
         // Keep all six controls usable at 320 pt and at larger text sizes.
         // Wide iPhones in landscape can use the complete single-row layout.
         VStack(spacing: 2) {
-            if width >= 500 && !dynamicTypeSize.isAccessibilitySize {
+            if width >= 360 && !dynamicTypeSize.isAccessibilitySize {
                 HStack(spacing: 4) {
                     backButton
                     addressPill
@@ -210,7 +210,7 @@ private struct BrowserPage: View {
             }
         }
         .padding(5)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 27))
+        .background(Color.nivqoPanel.opacity(0.94), in: RoundedRectangle(cornerRadius: 27))
         .overlay { RoundedRectangle(cornerRadius: 27).strokeBorder(.white.opacity(0.09)) }
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
@@ -242,11 +242,11 @@ private struct BrowserPage: View {
             .disabled(!tab.canGoBack).accessibilityLabel("Back")
     }
     private var flowButton: some View {
-        Button(action: openFlow) { controlIcon("arrow.up.right.square") }
+        Button(action: openFlow) { controlIcon("link") }
             .accessibilityLabel("Flow and Drop").accessibilityIdentifier("flowButton")
     }
     private var spacesButton: some View {
-        Button { openPanel("spaces") } label: { controlIcon("square.grid.2x2") }
+        Button { openPanel("spaces") } label: { controlIcon("square.3.layers.3d") }
             .accessibilityLabel("Spaces, \(browser.activeSpace.name)").accessibilityIdentifier("spacesButton")
     }
     private var tabsButton: some View {
@@ -359,43 +359,112 @@ private struct BrowserPage: View {
     }
 
     private var homePage: some View {
-                ScrollView {
-                    VStack(spacing: 26) {
-                        Image("Brand").resizable().scaledToFit().frame(width: 76, height: 76).padding(.top, 26)
-                        VStack(spacing: 12) {
-                            Text("N I V Q O").font(.largeTitle.bold())
-                            Text("The web, on your terms.").font(.title3.weight(.semibold))
-                            Text(tab.isPrivate ? "PRIVATE TAB · NO PERSISTENT WEBSITE STORAGE" : "THE WEB. YOUR WAY.").font(.caption2.weight(.semibold)).tracking(1.5).foregroundStyle(.secondary).multilineTextAlignment(.center)
+        ZStack {
+            Color.nivqoBackground.ignoresSafeArea()
+            RadialGradient(colors: [Color(red: 0.015, green: 0.23, blue: 0.38).opacity(0.8),
+                                    Color.nivqoBackground],
+                           center: .top, startRadius: 10, endRadius: 480)
+                .ignoresSafeArea()
+            ScrollView {
+                VStack(spacing: 28) {
+                    VStack(spacing: 12) {
+                        Image("Brand").resizable().scaledToFit()
+                            .frame(width: 98, height: 98)
+                            .accessibilityLabel("NIVQO logo")
+                        Text("N I V Q O").font(.system(size: 30, weight: .bold, design: .rounded))
+                            .tracking(4)
+                        Text("The web, on your terms.").font(.subheadline.weight(.medium))
+                            .foregroundStyle(accent)
+                        Text(tab.isPrivate ? "PRIVATE SESSION · HISTORY OFF" : "THE WEB. YOUR WAY.")
+                            .font(.caption2.weight(.semibold)).tracking(2.1)
+                            .foregroundStyle(.secondary)
+                    }.padding(.top, 28)
+                    Button(action: beginSearch) {
+                        HStack(spacing: 11) {
+                            Image(systemName: "magnifyingglass").foregroundStyle(accent)
+                            Text("Search or enter a website").foregroundStyle(.secondary)
+                                .font(.subheadline)
+                            Spacer()
+                            Image(systemName: "arrow.up.left.and.arrow.down.right")
+                                .foregroundStyle(accent)
                         }
-                        Button(action: beginSearch) { Label("Search anything or enter a URL", systemImage: "magnifyingglass").font(.subheadline).frame(maxWidth: .infinity).padding(18).background(Color.nivqoPanel).clipShape(RoundedRectangle(cornerRadius: 16)) }.padding(.horizontal, 24)
-                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
-                            feature("Flow + Drop", "Move tabs & files", "qrcode.viewfinder", openFlow)
-                            feature("Spaces", "Separate identities", "square.grid.2x2") { openPanel("spaces") }
+                        .padding(.horizontal, 16).frame(minHeight: 52)
+                        .background(Color.nivqoPanel, in: Capsule())
+                    }.buttonStyle(.plain)
+                        .accessibilityIdentifier("homeSearch")
+                    shortcutsGrid
+                    VStack(alignment: .leading, spacing: 13) {
+                        HStack {
+                            Text("Explore NIVQO").font(.headline)
+                            Spacer()
+                            HStack(spacing: 5) {
+                                Circle().fill(accent).frame(width: 7, height: 7)
+                                Text(browser.activeSpace.name).font(.caption.bold())
+                                    .foregroundStyle(accent)
+                            }
+                        }
+                        LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
+                            feature("Flow + Drop", "Move tabs & files", "link", openFlow)
+                            feature("Spaces", "Separate identities", "square.3.layers.3d") { openPanel("spaces") }
                             feature("Shield", "Privacy controls", "shield") { openPanel("privacy") }
                             feature("Assist", "Local reading tools", "sparkles") { openPanel("assist") }
-                        }.padding(.horizontal, 24)
-                        HStack(spacing: 24) {
-                            shortcut("Wikipedia", symbol: "book", url: "https://wikipedia.org")
-                            shortcut("GitHub", symbol: "chevron.left.forwardslash.chevron.right", url: "https://github.com")
-                            shortcut("Proton", symbol: "envelope", url: "https://mail.proton.me")
                         }
-                        Button { openPanel("imports") } label: { Label("Import bookmarks & saved passwords", systemImage: "square.and.arrow.down").font(.subheadline) }
-                        Text("\(browser.activeSpace.name) Space · \(tab.isPrivate ? "Temporary private session" : "Separate website session")\nFlow uses your local network and no NIVQO account.")
-                            .font(.footnote).foregroundStyle(.secondary).multilineTextAlignment(.center).padding(.horizontal, 30)
-                    }.padding(.bottom, 30).frame(maxWidth: .infinity)
-                }
-    }
-    private func feature(_ title: String, _ detail: String, _ symbol: String, _ action: @escaping () -> Void) -> some View {
-        Button(action: action) { VStack(spacing: 10) {
-            Image(systemName: symbol).font(.title2)
-            Text(title).font(.subheadline.bold())
-            Text(detail).font(.caption).foregroundStyle(.secondary)
-        }.frame(maxWidth: .infinity, minHeight: 106).padding(8).background(Color.nivqoPanel).clipShape(RoundedRectangle(cornerRadius: 16)) }
-    }
-    private func shortcut(_ name: String, symbol: String, url: String) -> some View {
-        Button { if let url = URL(string: url) { tab.load(url) } } label: {
-            VStack(spacing: 10) { Image(systemName: symbol).font(.title2).frame(width: 50, height: 50).background(Color.nivqoPanel).clipShape(RoundedRectangle(cornerRadius: 16)); Text(name).font(.caption) }
+                    }
+                    Button { openPanel("imports") } label: {
+                        Label("Import bookmarks & saved accounts", systemImage: "square.and.arrow.down")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }.padding(.horizontal, 24).padding(.bottom, 36)
+                    .frame(maxWidth: .infinity)
+            }.scrollIndicators(.hidden)
         }
+    }
+
+    private var shortcutsGrid: some View {
+        LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 16) {
+            siteShortcut("Google", "g.circle.fill", "https://www.google.com", .white)
+            siteShortcut("YouTube", "play.rectangle.fill", "https://www.youtube.com", .red)
+            siteShortcut("Amazon", "a.circle.fill", "https://www.amazon.co.uk", .orange)
+            siteShortcut("BBC", "tv", "https://www.bbc.co.uk", .white)
+            siteShortcut("Wikipedia", "book.closed.fill", "https://www.wikipedia.org", .white)
+            siteShortcut("Sky News", "newspaper.fill", "https://news.sky.com", .red)
+            siteShortcut("GitHub", "chevron.left.forwardslash.chevron.right", "https://github.com", .white)
+            Button(action: openBookmarks) { shortcutContents("Saved", symbol: "plus", tint: accent) }
+                .buttonStyle(.plain).accessibilityLabel("Open bookmarks")
+        }
+    }
+
+    private func siteShortcut(_ name: String, _ symbol: String, _ url: String, _ tint: Color) -> some View {
+        Button {
+            guard let page = safeWebURL(url) else { return }
+            endSearch()
+            tab.load(page)
+        } label: { shortcutContents(name, symbol: symbol, tint: tint) }
+        .buttonStyle(.plain).accessibilityLabel("Open \(name)")
+    }
+
+    private func shortcutContents(_ name: String, symbol: String, tint: Color) -> some View {
+        VStack(spacing: 7) {
+            Image(systemName: symbol).font(.title3.weight(.semibold))
+                .foregroundStyle(tint).frame(maxWidth: .infinity).frame(height: 55)
+                .background(Color.nivqoPanel, in: RoundedRectangle(cornerRadius: 15))
+            Text(name).font(.caption2).foregroundStyle(.primary)
+                .lineLimit(1).minimumScaleFactor(0.8)
+        }.frame(maxWidth: .infinity)
+    }
+
+    private func feature(_ title: String, _ detail: String, _ symbol: String,
+                         _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: 8) {
+                Image(systemName: symbol).font(.title2).foregroundStyle(accent)
+                Text(title).font(.subheadline.weight(.semibold))
+                Text(detail).font(.caption2).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }.frame(maxWidth: .infinity, minHeight: 112).padding(8)
+                .background(Color.nivqoPanel, in: RoundedRectangle(cornerRadius: 18))
+                .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(accent.opacity(0.13)))
+        }.buttonStyle(.plain)
     }
 }
 
