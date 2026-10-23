@@ -21,7 +21,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: iphone-${{ github.workflow }}-${{ github.ref }}
+  group: iphone-device-verification-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 env:
