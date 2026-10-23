@@ -54,14 +54,36 @@ struct BrowserPanels: View {
         Group {
             Section("Choose a Space") {
                 ForEach(browser.spaces) { space in
-                    Button { browser.switchSpace(space.id); dismiss() } label: {
-                        HStack(spacing: 14) {
-                            Circle().fill(Color(spaceHex: space.hex)).frame(width: 14, height: 14)
-                            VStack(alignment: .leading, spacing: 5) { Text(space.name).foregroundStyle(.primary); Text("\(browser.tabs.filter { $0.spaceID == space.id }.count) tabs · \(browser.bookmarks.filter { ($0.spaceID ?? "personal") == space.id }.count) bookmarks").font(.caption).foregroundStyle(.secondary) }
-                            Spacer()
-                            if space.id == browser.activeSpaceID { Image(systemName: "checkmark") }
-                        }.padding(.vertical, 8)
-                    }
+                    Button {
+                        browser.switchSpace(space.id)
+                        dismiss()
+                    } label: {
+                        HStack(spacing: 15) {
+                            Image(systemName: space.id == "work" ? "briefcase.fill" :
+                                    space.id == "gaming" ? "gamecontroller.fill" :
+                                    space.id == "shopping" ? "bag.fill" : "person.fill")
+                                .font(.title3)
+                                .foregroundStyle(Color(spaceHex: space.hex))
+                                .frame(width: 44, height: 44)
+                                .background(Color(spaceHex: space.hex).opacity(0.15),
+                                            in: RoundedRectangle(cornerRadius: 13))
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(space.name).font(.headline).foregroundStyle(.primary)
+                                Text("\(browser.tabs.filter { $0.spaceID == space.id }.count) tabs · \(browser.bookmarks.filter { ($0.spaceID ?? "personal") == space.id }.count) bookmarks")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer(minLength: 0)
+                            if space.id == browser.activeSpaceID {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(Color(spaceHex: space.hex))
+                            } else {
+                                Image(systemName: "chevron.right")
+                                    .font(.caption).foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 5)
+                        .contentShape(Rectangle())
+                    }.buttonStyle(.plain)
                 }
             }
             Section("Add a Space") { TextField("Name, e.g. Travel", text: $name); Button("Create Space") { browser.addSpace(name); name = "" } }
