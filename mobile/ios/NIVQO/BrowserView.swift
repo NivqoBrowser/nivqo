@@ -25,31 +25,9 @@ struct BrowserView: View {
         .sheet(isPresented: Binding(get: { panel != nil }, set: { if !$0 { panel = nil } })) { BrowserPanels(browser: browser, panel: panel ?? "settings").tint(accent) }
         .alert("NIVQO", isPresented: Binding(get: { browser.notice != nil }, set: { if !$0 { browser.notice = nil } })) { Button("OK") { browser.notice = nil } } message: { Text(browser.notice ?? "") }
         .sheet(isPresented: $showingFlow) { FlowView(flow: flow, browser: browser) }
-        .sheet(isPresented: $showingTabs) {
-            NavigationStack {
-                List {
-                    Section {
-                        Button { showingTabs = false; panel = "spaces" } label: {
-                            Label("\(browser.activeSpace.name) Space · Change Space", systemImage: "square.grid.2x2")
-                        }
-                    }
-                    ForEach(browser.visibleTabs) { tab in
-                        HStack {
-                            Button {
-                                browser.select(tab); showingTabs = false
-                            } label: {
-                                Label(tab.title, systemImage: tab.isPrivate ? "eye.slash" : "globe").lineLimit(2)
-                            }
-                            Spacer()
-                            Button { browser.close(tab.id) } label: { Image(systemName: "xmark.circle") }.buttonStyle(.borderless).accessibilityLabel("Close \(tab.title)")
-                        }.padding(.vertical, 8)
-                    }
-                }.navigationTitle("Your tabs")
-                    .toolbar {
-                        ToolbarItem(placement: .navigationBarLeading) { Button("Done") { showingTabs = false } }
-                        ToolbarItem(placement: .navigationBarTrailing) { Button("New tab") { browser.newTab(); showingTabs = false } }
-                    }
-            }
+        .fullScreenCover(isPresented: $showingTabs) {
+            NIVQOTabOverview(browser: browser, isPresented: $showingTabs)
+                .preferredColorScheme(.dark)
         }
         .sheet(isPresented: $showingBookmarks) {
             NavigationStack {
@@ -496,6 +474,135 @@ private struct BrowserPage: View {
                 .background(Color.nivqoPanel, in: RoundedRectangle(cornerRadius: 18))
                 .overlay(RoundedRectangle(cornerRadius: 18).strokeBorder(accent.opacity(0.13)))
         }.buttonStyle(.plain)
+    }
+}
+
+
+private struct NIVQOTabOverview: View {
+    @ObservedObject var browser: BrowserModel
+    @Binding var isPresented: Bool
+    @State private var showingPrivate = false
+    private var accent: Color { Color(spaceHex: browser.activeSpace.hex) }
+    private var filteredTabs: [BrowserTab] {
+        browser.visibleTabs.filter { $0.isPrivate == showingPrivate }
+    }
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                Picker("Tab type", selection: $showingPrivate) {
+                    Text("Tabs").tag(false)
+                    Text("Private").tag(true)
+                }
+                .pickerStyle(.segmented).padding(.horizontal, 20).padding(.vertical, 14)
+                ScrollView {
+                    if filteredTabs.isEmpty {
+                        VStack(spacing: 15) {
+                            Image(systemName: showingPrivate ? "eye.slash" : "square.on.square")
+                                .font(.largeTitle).foregroundStyle(accent)
+                            Text(showingPrivate ? "No private tabs" : "No open tabs")
+                                .font(.headline)
+                            Text(showingPrivate ? "Private tabs keep your searches out of history." : "Open a new tab to start exploring.")
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .font(.subheadline)
+                            Button(showingPrivate ? "New private tab" : "New tab") {
+                                browser.newTab(privateMode: showingPrivate)
+                                isPresented = false
+                            }.buttonStyle(.borderedProminent)
+                        }.padding(32).frame(maxWidth: .infinity)
+                    } else {
+                        LazyVGrid(columns: [GridItem(.flexible(), spacing: 14),
+                                           GridItem(.flexible(), spacing: 14)], spacing: 20) {
+                            ForEach(filteredTabs) { tab in
+                                NIVQOTabCard(tab: tab, accent: accent,
+                                    selected: tab.id == browser.selectedID,
+                                    open: { browser.select(tab); isPresented = false },
+                                    close: { browser.close(tab.id) })
+                            }
+                        }.padding(.horizontal, 18).padding(.vertical, 10)
+                    }
+                }
+                HStack {
+                    HStack(spacing: 6) {
+                        Circle().fill(accent).frame(width: 7, height: 7)
+                        Text(browser.activeSpace.name).font(.caption)
+                    }.foregroundStyle(accent)
+                    Spacer()
+                    Text("\(filteredTabs.count) \(showingPrivate ? "private " : "")tabs")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Done") { isPresented = false }.foregroundStyle(accent)
+                }
+                .padding(.horizontal, 23).frame(minHeight: 55)
+                .background(Color.nivqoPanel.opacity(0.8))
+            }
+            .background(Color.nivqoBackground)
+            .navigationTitle("Tabs").navigationBarTitleDisplayMode(.large)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        browser.newTab(privateMode: showingPrivate)
+                        isPresented = false
+                    } label: { Image(systemName: "plus").font(.title3) }
+                        .accessibilityLabel("New tab")
+                }
+            }
+        }.tint(accent)
+            .accessibilityIdentifier("nivqoTabOverview")
+    }
+}
+
+private struct NIVQOTabCard: View {
+    @ObservedObject var tab: BrowserTab
+    let accent: Color
+    let selected: Bool
+    let open: () -> Void
+    let close: () -> Void
+    @State private var snapshot: UIImage?
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            ZStack(alignment: .topTrailing) {
+                Button(action: open) {
+                    ZStack {
+                        Color.nivqoPanel
+                        if let snapshot {
+                            Image(uiImage: snapshot).resizable().scaledToFill()
+                        } else {
+                            VStack(spacing: 8) {
+                                Image("Brand").resizable().scaledToFit()
+                                    .frame(width: 55, height: 55)
+                                Text(tab.url?.host ?? "NIVQO").font(.caption)
+                                    .foregroundStyle(.secondary).lineLimit(1)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity).frame(height: 205)
+                    .clipped()
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .overlay(RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(selected ? accent : Color.white.opacity(0.1),
+                                      lineWidth: selected ? 2 : 1))
+                }.buttonStyle(.plain)
+                    .accessibilityLabel("Open \(tab.title)")
+                Button(action: close) {
+                    Image(systemName: "xmark").font(.footnote.bold())
+                        .foregroundStyle(.white).frame(width: 34, height: 34)
+                        .background(Color.black.opacity(0.75), in: Circle())
+                }
+                .padding(7).accessibilityLabel("Close \(tab.title)")
+            }
+            HStack(spacing: 6) {
+                Image(systemName: tab.isPrivate ? "eye.slash" : "globe").foregroundStyle(accent)
+                Text(tab.title).lineLimit(1)
+            }.font(.caption.weight(.medium))
+        }
+        .onAppear {
+            guard tab.url != nil, snapshot == nil else { return }
+            tab.webView.takeSnapshot(with: nil) { image, _ in
+                if let image { snapshot = image }
+            }
+        }
+        .onDisappear { snapshot = nil }
     }
 }
 
