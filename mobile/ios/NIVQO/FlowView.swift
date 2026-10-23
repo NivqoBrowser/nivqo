@@ -159,7 +159,7 @@ struct FlowView: View {
                              action: @escaping () -> Void) -> some View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 8) {
-                Image(systemName: icon).font(.title2).foregroundStyle(.nivqoCyan)
+                Image(systemName: icon).font(.title2).foregroundStyle(Color.nivqoCyan)
                 Text(title).font(.subheadline.weight(.semibold))
                     .foregroundStyle(.primary).multilineTextAlignment(.leading)
                 Text(subtitle).font(.caption2).foregroundStyle(.secondary)
