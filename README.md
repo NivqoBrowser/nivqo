@@ -4,29 +4,31 @@
 
 A smarter, faster, more connected browsing experience within The Willard Group Ltd.
 
-## iPhone v0.8.5 — Bottom Bar Refresh
+## iPhone v0.9.0 — Mockup Match (build 13)
 
-The iPhone app now builds directly from the reviewable Swift source in `mobile/ios`.
-The original source ZIP and `mobile/patches` remain historical inputs; the workflow
-no longer extracts or reapplies them. The source was reconstructed from the ZIP
-plus the active v0.8.2 and v0.8.4 patches. The superseded v0.8.3 URL-completion
-patch is deliberately not applied. No prior v0.8.5 recovery patch was present on
-`main` or the existing feature branch when this update was prepared.
+This is an actual SwiftUI interface implementation, not a static visual prototype.
+The authoritative source is under `mobile/ios`; historical ZIPs and patch files
+are not reapplied during GitHub Actions builds.
 
-- Full-width websites with a floating bottom address/search pill.
-- Back, Address/Search, Flow, Spaces, Tabs and Menu; two rows on narrow phones.
-- Scroll down for compact controls; scroll up or tap the compact domain to reveal.
-  Flow and Spaces remain available in the compact strip.
-- Keyboard safe-area layout, 44-point controls, VoiceOver labels and Reduce Motion.
-- Blank tabs ignore WebKit process termination. Real pages receive at most one
-  automatic recovery attempt per explicit navigation; further failures show a
-  nonblocking Reload notice. Background and closed tabs never auto-reload.
-- The existing per-Space search-phrase history remains; no URL autocomplete.
+- NIVQO branded gradient home screen with approved N mark, search and quick sites.
+- A dynamic, full-height WKWebView browser with Safari-inspired compact bottom
+  toolbar (Back / Address / Flow / Spaces / Tabs / Menu); smaller devices adapt.
+- Full-screen address/search mode, with private-aware local search history,
+  per-Space filtering, Clear All and one-tap search reuse.
+- Visual two-column tab overview, with WebKit snapshots where available,
+  independent normal/private lists and tab close/open actions.
+- Colour-coded Personal, Work, Gaming and Shopping Spaces, preserving historical
+  cookie stores and bookmarks; existing users receive Gaming via migration.
+- Functional Flow quick actions for tabs, URL links, files and connection status.
+- Existing local history, private-mode isolation, bounded WebKit recovery and
+  ordinary website verification compatibility remain in place.
 
-The bundle identifier remains `dev.nivqo.iphone`. Personal website storage,
-Space data identifiers, preferences, bookmarks, history, saved accounts and
-normal/private isolation retain their existing storage formats. WebKit uses its
-ordinary JavaScript, cookies and user agent; this is not a challenge bypass.
+Morrisons in the earlier concept image was only an example webpage; no Morrisons
+page is embedded or required. All real websites render dynamically in WebKit.
+
+Version **0.9.0** is an alpha. Passing Swift tests, Xcode compilation and IPA
+validation does **not** guarantee the UI, website sign-ins, Flow pairing, or WebKit
+recovery have passed hands-on testing on a physical iPhone.
 
 ## Official visual identity
 
@@ -39,9 +41,9 @@ or replace the mark.
 ## Build and install
 
 Open [Build NIVQO iPhone IPA](https://github.com/NivqoBrowser/nivqo/actions/workflows/build-iphone-ipa.yml).
-Choose a successful v0.8.5 run and download **NIVQO-iPhone-for-Sideloadly** from
+Choose a successful v0.9.0 run and download **NIVQO-iPhone-for-Sideloadly** from
 its **Artifacts** section. Extract the ZIP and open
-`NIVQO-iPhone-v0.8.5-unsigned.ipa` in Sideloadly. Keep the same Apple signing
+`NIVQO-iPhone-v0.9.0-unsigned.ipa` in Sideloadly. Keep the same Apple signing
 account and installed bundle identifier as the previous installation. Keep the
 existing app installed to retain its local data.
 
