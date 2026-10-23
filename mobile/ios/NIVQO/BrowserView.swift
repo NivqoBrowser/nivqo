@@ -1,5 +1,6 @@
 import SwiftUI
 import WebKit
+import UIKit
 
 struct BrowserView: View {
     @ObservedObject var browser: BrowserModel
@@ -105,25 +106,20 @@ private struct BrowserPage: View {
     var body: some View {
         GeometryReader { geometry in
             ZStack {
-                if isHome { homePage }
+                if editingAddress { searchMode }
+                else if isHome { homePage }
                 else { WebPage(webView: tab.webView).id(tab.id) }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .safeAreaInset(edge: .bottom, spacing: 0) {
-                VStack(spacing: 6) {
-                    if let notice = tab.recoveryNotice { recoveryBanner(notice) }
-                    if editingAddress {
-                        searchSuggestions(maxHeight: min(220, max(44, geometry.size.height * 0.38)))
-                        addressEditor
-                    } else if compact {
-                        compactDock
-                    } else {
-                        expandedDock(width: geometry.size.width)
+                if !editingAddress {
+                    VStack(spacing: 6) {
+                        if let notice = tab.recoveryNotice { recoveryBanner(notice) }
+                        if compact { compactDock }
+                        else { expandedDock(width: geometry.size.width) }
                     }
+                    .padding(.horizontal, 8).padding(.top, 5).padding(.bottom, 6)
                 }
-                .padding(.horizontal, 8)
-                .padding(.top, 5)
-                .padding(.bottom, 6)
             }
             .overlay(alignment: .top) {
                 if tab.isLoading {
@@ -134,7 +130,7 @@ private struct BrowserPage: View {
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: compact)
         .onChange(of: editingAddress) { _, editing in
-            if editing { tab.setChromeHidden(false) }
+            if editing { tab.setChromeHidden(false); addressFocused = true }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             websiteKeyboardVisible = true
@@ -287,48 +283,75 @@ private struct BrowserPage: View {
         .accessibilityLabel("Browser menu").accessibilityIdentifier("browserMenu")
     }
 
-    private var addressEditor: some View {
-        HStack(spacing: 4) {
-            TextField("Search or enter a website", text: $address)
-                .keyboardType(.webSearch).textInputAutocapitalization(.never).autocorrectionDisabled()
-                .submitLabel(.go).focused($addressFocused)
-                .onSubmit { runSearch(address) }
-                .padding(.leading, 12).frame(minHeight: 44)
-                .accessibilityLabel("Website address or search").accessibilityIdentifier("addressEditor")
-                .task { addressFocused = true }
-            if !address.isEmpty {
-                Button { address = ""; editingCurrentURL = false } label: { controlIcon("xmark.circle.fill") }
-                    .accessibilityLabel("Clear address")
-            }
-            Button("Cancel", action: endSearch).font(.callout)
-                .frame(minWidth: 44, minHeight: 44).padding(.trailing, 8)
-        }
-        .padding(5).background(.regularMaterial, in: RoundedRectangle(cornerRadius: 27))
-    }
-
-    @ViewBuilder private func searchSuggestions(maxHeight: CGFloat) -> some View {
-        if !suggestions.isEmpty || (!isHome && !editingCurrentURL) {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    if !suggestions.isEmpty {
-                        Text(address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Recent searches" : "Previous searches")
-                            .font(.caption.weight(.semibold)).foregroundStyle(.secondary)
-                            .padding(.horizontal, 14).padding(.vertical, 8)
-                        ForEach(suggestions) { item in
-                            Button { runSearch(item.query) } label: {
-                                HStack(spacing: 12) {
-                                    Image(systemName: "clock.arrow.circlepath").foregroundStyle(accent)
-                                    Text(item.query).foregroundStyle(.primary).lineLimit(2)
-                                    Spacer(minLength: 0)
-                                }
-                                .padding(.horizontal, 14).padding(.vertical, 8).frame(minHeight: 44)
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain).accessibilityLabel("Search again for \(item.query)")
-                        }
+    // Search terms are suggested from the current Space, never from URL visits.
+    private var searchMode: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 10) {
+                HStack(spacing: 10) {
+                    Image(systemName: "magnifyingglass").foregroundStyle(accent)
+                    TextField("Search or enter a website", text: $address)
+                        .keyboardType(.webSearch).textInputAutocapitalization(.never)
+                        .autocorrectionDisabled().submitLabel(.go)
+                        .focused($addressFocused)
+                        .onSubmit { runSearch(address) }
+                        .accessibilityIdentifier("addressEditor")
+                    if !address.isEmpty {
+                        Button { address = ""; editingCurrentURL = false } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.secondary)
+                                .frame(minWidth: 30, minHeight: 40)
+                        }.accessibilityLabel("Clear search text")
                     }
-                    // Editing the current URL remains available in private tabs
-                    // and when saved history is disabled. It never autocompletes.
+                }
+                .padding(.horizontal, 14).frame(minHeight: 49)
+                .background(Color.nivqoPanel, in: Capsule())
+                Button("Cancel", action: endSearch)
+                    .font(.subheadline.weight(.medium)).frame(minHeight: 44)
+            }
+            .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 12)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    if !tab.isPrivate {
+                        VStack(spacing: 0) {
+                            HStack {
+                                Text(address.isEmpty ? "Recent Searches" : "Matching Searches")
+                                    .font(.subheadline.weight(.semibold))
+                                Spacer()
+                                if address.isEmpty && !browser.visibleSearchHistory.isEmpty {
+                                    Button("Clear All") { browser.clearSearchHistory() }
+                                        .font(.caption.weight(.medium)).foregroundStyle(accent)
+                                        .accessibilityIdentifier("clearRecentSearches")
+                                }
+                            }.padding(.bottom, 10)
+                            if suggestions.isEmpty {
+                                Text(address.isEmpty ? "Searches in this Space will appear here." : "No matching previous searches.")
+                                    .font(.subheadline).foregroundStyle(.secondary)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.vertical, 12)
+                            }
+                            ForEach(suggestions) { item in
+                                HStack(spacing: 12) {
+                                    Button { runSearch(item.query) } label: {
+                                        HStack(spacing: 12) {
+                                            Image(systemName: "clock.arrow.circlepath").foregroundStyle(accent)
+                                            Text(item.query).foregroundStyle(.primary).lineLimit(1)
+                                            Spacer(minLength: 0)
+                                        }
+                                        .frame(minHeight: 49).contentShape(Rectangle())
+                                    }.buttonStyle(.plain)
+                                    Button { browser.removeSearch(item.id) } label: {
+                                        Image(systemName: "xmark")
+                                            .font(.caption).foregroundStyle(.secondary)
+                                            .frame(width: 44, height: 44)
+                                    }.accessibilityLabel("Remove search \(item.query)")
+                                }
+                                Divider().overlay(.white.opacity(0.05))
+                            }
+                        }
+                    } else {
+                        Label("Private browsing doesn't save searches.", systemImage: "eye.slash")
+                            .foregroundStyle(.secondary).font(.subheadline)
+                    }
                     if !isHome, let url = tab.url, !editingCurrentURL {
                         Button {
                             editingCurrentURL = true
@@ -336,15 +359,23 @@ private struct BrowserPage: View {
                             addressFocused = true
                         } label: {
                             Label("Edit current website address", systemImage: "link")
-                                .font(.callout).padding(.horizontal, 14).padding(.vertical, 8)
+                                .font(.subheadline)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                                 .frame(minHeight: 44)
                         }
                     }
-                }.frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .frame(maxHeight: maxHeight)
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+                    if address.isEmpty {
+                        VStack(alignment: .leading, spacing: 16) {
+                            Text("Popular Sites").font(.subheadline.weight(.semibold))
+                            shortcutsGrid
+                        }
+                    }
+                }.padding(.horizontal, 22).padding(.top, 14)
+            }.scrollDismissesKeyboard(.interactively)
         }
+        .background(Color.nivqoBackground)
+        .onAppear { addressFocused = true }
+        .accessibilityIdentifier("nivqoSearchMode")
     }
 
     private func recoveryBanner(_ notice: String) -> some View {
