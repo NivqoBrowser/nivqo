@@ -22,6 +22,9 @@ final class BrowserTab: NSObject, ObservableObject, Identifiable, WKNavigationDe
     @Published var url: URL?
     @Published var canGoBack = false
     @Published var canGoForward = false
+    // Native NIVQO home is not a WebKit history entry.
+    @Published private(set) var showsHome = true
+    private var homeForwardURL: URL?
     @Published var progress = 0.0
     @Published var isLoading = false
     // Each tab remembers its own immersive chrome state.
@@ -63,10 +66,10 @@ final class BrowserTab: NSObject, ObservableObject, Identifiable, WKNavigationDe
                 // Process eviction can transiently clear WebKit's URL. Preserve
                 // the requested page so it stays retryable instead of becoming home.
                 // Explicit about:blank is still kept and never auto-reloaded.
-                if let url = web.url { self?.url = url }
+                if let url = web.url { self?.url = url; self?.updateNavigationState() }
             },
-            webView.observe(\.canGoBack, options: [.new]) { [weak self] web, _ in self?.canGoBack = web.canGoBack },
-            webView.observe(\.canGoForward, options: [.new]) { [weak self] web, _ in self?.canGoForward = web.canGoForward },
+            webView.observe(\.canGoBack, options: [.new]) { [weak self] _, _ in self?.updateNavigationState() },
+            webView.observe(\.canGoForward, options: [.new]) { [weak self] _, _ in self?.updateNavigationState() },
             webView.observe(\.estimatedProgress, options: [.new]) { [weak self] web, _ in self?.progress = web.estimatedProgress },
             webView.observe(\.isLoading, options: [.new]) { [weak self] web, _ in self?.isLoading = web.isLoading },
             // Observe rather than replace WKWebView's own scroll-view delegate.
@@ -75,6 +78,11 @@ final class BrowserTab: NSObject, ObservableObject, Identifiable, WKNavigationDe
             }
         ]
     }
+    private func updateNavigationState() {
+        canGoBack = !showsHome && (webView.canGoBack || recoverableURL != nil)
+        canGoForward = showsHome ? (homeForwardURL != nil) : webView.canGoForward
+    }
+
     func setChromeHidden(_ hidden: Bool) {
         guard hidesChrome != hidden else { return }
         hidesChrome = hidden
@@ -101,7 +109,9 @@ final class BrowserTab: NSObject, ObservableObject, Identifiable, WKNavigationDe
         }
     }
     func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+        showsHome = false
         currentNavigation = navigation
+        updateNavigationState()
         setChromeHidden(false)
         previousScrollY = 0
     }
@@ -110,13 +120,17 @@ final class BrowserTab: NSObject, ObservableObject, Identifiable, WKNavigationDe
         recoveryPolicy.navigationFinished()
         recoveringNavigation = false
         recoveryNotice = nil
+        updateNavigationState()
         if !isPrivate, let url = webView.url, safeWebURL(url.absoluteString) != nil { onVisit?(webView.title ?? url.host ?? "Page", url) }
     }
     func load(_ url: URL) {
         guard !isClosed else { return }
         guard let safeURL = safeWebURL(url.absoluteString) else { message = "Only http and https pages can be opened."; return }
         prepareUserNavigation()
+        showsHome = false
+        homeForwardURL = nil
         self.url = safeURL
+        updateNavigationState()
         setChromeHidden(false)
         currentNavigation = webView.load(URLRequest(url: safeURL))
     }
@@ -128,14 +142,41 @@ final class BrowserTab: NSObject, ObservableObject, Identifiable, WKNavigationDe
         currentNavigation = webView.reload() ?? webView.load(URLRequest(url: page))
     }
     func goBack() {
-        guard !isClosed, webView.canGoBack else { return }
-        prepareUserNavigation()
-        currentNavigation = webView.goBack()
+        guard !isClosed, !showsHome else { return }
+        if webView.canGoBack {
+            prepareUserNavigation()
+            currentNavigation = webView.goBack()
+        } else {
+            goHome()
+        }
     }
     func goForward() {
-        guard !isClosed, webView.canGoForward else { return }
+        guard !isClosed else { return }
+        if showsHome, let page = homeForwardURL {
+            // Restore the very same WKWebView instead of reloading the page.
+            homeForwardURL = nil
+            showsHome = false
+            url = page
+            setChromeHidden(false)
+            updateNavigationState()
+            return
+        }
+        guard !showsHome, webView.canGoForward else { return }
         prepareUserNavigation()
         currentNavigation = webView.goForward()
+    }
+    func goHome() {
+        guard !isClosed, !showsHome, let page = recoverableURL else { return }
+        homeForwardURL = page
+        cancelRecovery()
+        webView.stopLoading()
+        recoveringNavigation = false
+        recoveryNotice = nil
+        message = nil
+        showsHome = true
+        url = nil
+        setChromeHidden(false)
+        updateNavigationState()
     }
     func dismissRecoveryNotice() { recoveryNotice = nil }
     func stopLoading() {
@@ -290,8 +331,12 @@ final class BrowserModel: ObservableObject {
     private var privateStores: [String: WKWebsiteDataStore] = [:]
     private struct RestoredTab: Codable { var url: String; var spaceID: String }
     private var tabObservers: [UUID: AnyCancellable] = [:]
+    private var lastTabBySpace: [String: UUID] = [:]
     private func observe(_ tab: BrowserTab) { tabObservers[tab.id] = tab.objectWillChange.sink { [weak self] in self?.objectWillChange.send() } }
     private func synchronizeSelection() {
+        if let selected = tabs.first(where: { $0.id == selectedID }) {
+            lastTabBySpace[selected.spaceID] = selected.id
+        }
         for tab in tabs { tab.setSelected(tab.id == selectedID) }
     }
     init() {
@@ -365,7 +410,14 @@ final class BrowserModel: ObservableObject {
     func switchSpace(_ id: String) {
         guard spaces.contains(where: { $0.id == id }) else { return }
         activeSpaceID = id
-        if let tab = tabs.first(where: { $0.spaceID == id }) { selectedID = tab.id } else { newTab() }
+        if let idToRestore = lastTabBySpace[id],
+           let tab = tabs.first(where: { $0.id == idToRestore && $0.spaceID == id }) {
+            selectedID = tab.id
+        } else if let tab = tabs.first(where: { $0.spaceID == id }) {
+            selectedID = tab.id
+        } else {
+            newTab()
+        }
     }
     func select(_ tab: BrowserTab) { activeSpaceID = tab.spaceID; selectedID = tab.id }
     func addSpace(_ name: String) {
@@ -398,6 +450,9 @@ final class BrowserModel: ObservableObject {
     func close(_ id: UUID) {
         tabs.first(where: { $0.id == id })?.close()
         tabs.removeAll { $0.id == id }; tabObservers.removeValue(forKey: id)
+        for space in Array(lastTabBySpace.keys) where lastTabBySpace[space] == id {
+            lastTabBySpace.removeValue(forKey: space)
+        }
         for id in Array(privateStores.keys) where !tabs.contains(where: { $0.isPrivate && $0.spaceID == id }) { privateStores.removeValue(forKey: id) }
         if visibleTabs.isEmpty { newTab() }
         if !visibleTabs.contains(where: { $0.id == selectedID }) { selectedID = visibleTabs[0].id }
