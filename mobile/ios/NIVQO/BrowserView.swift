@@ -496,6 +496,10 @@ private struct NIVQOTabOverview: View {
     private var filteredTabs: [BrowserTab] {
         browser.visibleTabs.filter { $0.isPrivate == showingPrivate }
     }
+    private var tabCountLabel: String {
+        let word = filteredTabs.count == 1 ? "tab" : "tabs"
+        return "\(filteredTabs.count) \(showingPrivate ? "private " : "")\(word)"
+    }
 
     // Changing the Space keeps the tab grid open, instead of forcing the user
     // to return to the webpage between Personal, Work, Gaming and Shopping.
@@ -615,7 +619,7 @@ private struct NIVQOTabOverview: View {
                     }
                     .accessibilityLabel("Choose browsing Space")
                     Spacer()
-                    Text("\(filteredTabs.count) \(showingPrivate ? "private " : "")tabs")
+                    Text(tabCountLabel)
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button("Done") { isPresented = false }.foregroundStyle(accent)
@@ -625,7 +629,7 @@ private struct NIVQOTabOverview: View {
                 .background(Color.nivqoPanel.opacity(0.8))
             }
             .background(Color.nivqoBackground)
-            .navigationTitle("Tabs").navigationBarTitleDisplayMode(.large)
+            .navigationTitle("Tabs").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
