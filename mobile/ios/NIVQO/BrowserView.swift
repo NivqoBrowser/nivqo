@@ -158,62 +158,69 @@ private struct BrowserPage: View {
     }
 
     @ViewBuilder private func expandedDock(width: CGFloat) -> some View {
-        // Keep all six controls usable at 320 pt and at larger text sizes.
-        // Wide iPhones in landscape can use the complete single-row layout.
-        VStack(spacing: 2) {
-            if width >= 360 && !dynamicTypeSize.isAccessibilitySize {
-                HStack(spacing: 4) {
+        // Give URL addresses enough width; homepage already has a search field.
+        VStack(spacing: 5) {
+            if !isHome {
+                HStack(spacing: 5) {
                     backButton
+                    forwardButton
                     addressPill
-                    flowButton
-                    spacesButton
-                    tabsButton
-                    browserMenu
-                }
-            } else {
-                HStack(spacing: 4) {
-                    backButton
-                    addressPill
-                }
-                HStack(spacing: 0) {
-                    flowButton.frame(maxWidth: .infinity)
-                    spacesButton.frame(maxWidth: .infinity)
-                    tabsButton.frame(maxWidth: .infinity)
-                    browserMenu.frame(maxWidth: .infinity)
                 }
             }
+            HStack(spacing: 0) {
+                if isHome {
+                    backButton.frame(maxWidth: .infinity)
+                    forwardButton.frame(maxWidth: .infinity)
+                }
+                flowButton.frame(maxWidth: .infinity)
+                spacesButton.frame(maxWidth: .infinity)
+                tabsButton.frame(maxWidth: .infinity)
+                browserMenu.frame(maxWidth: .infinity)
+            }
         }
-        .padding(5)
-        .background(Color.nivqoPanel.opacity(0.94), in: RoundedRectangle(cornerRadius: 27))
-        .overlay { RoundedRectangle(cornerRadius: 27).strokeBorder(.white.opacity(0.09)) }
+        .padding(6)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 24))
+        .overlay { RoundedRectangle(cornerRadius: 24).strokeBorder(accent.opacity(0.22), lineWidth: 0.8) }
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     private var compactDock: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 3) {
+            backButton
+            forwardButton
             Button { tab.setChromeHidden(false) } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: tab.isPrivate ? "eye.slash" : "chevron.up").foregroundStyle(accent)
-                    Text(domain).lineLimit(1).truncationMode(.middle).foregroundStyle(.primary)
+                HStack(spacing: 5) {
+                    Image(systemName: "chevron.up").foregroundStyle(accent)
+                    Text(domain).lineLimit(1).truncationMode(.middle)
+                        .foregroundStyle(.primary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .font(.footnote).padding(.horizontal, 12).frame(minHeight: 44)
+                .font(.footnote)
+                .padding(.horizontal, 10)
+                .frame(minHeight: 44)
                 .contentShape(Capsule())
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Show browser controls, \(domain)")
+            .accessibilityLabel("Reveal browser controls for \(domain)")
             .accessibilityIdentifier("showBrowserControls")
             flowButton
             spacesButton
         }
-        .padding(.horizontal, 5)
+        .padding(.horizontal, 4)
         .background(.ultraThinMaterial, in: Capsule())
+        .overlay { Capsule().strokeBorder(accent.opacity(0.2), lineWidth: 0.8) }
         .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     private var backButton: some View {
         Button { tab.goBack() } label: { controlIcon("chevron.left") }
-            .disabled(!tab.canGoBack).accessibilityLabel("Back")
+            .disabled(!tab.canGoBack)
+            .accessibilityLabel("Back").accessibilityIdentifier("browserBackButton")
+    }
+    private var forwardButton: some View {
+        Button { tab.goForward() } label: { controlIcon("chevron.right") }
+            .disabled(!tab.canGoForward)
+            .accessibilityLabel("Forward").accessibilityIdentifier("browserForwardButton")
     }
     private var flowButton: some View {
         Button(action: openFlow) { controlIcon("link") }
@@ -384,9 +391,11 @@ private struct BrowserPage: View {
                             .tracking(4)
                         Text("The web, on your terms.").font(.subheadline.weight(.medium))
                             .foregroundStyle(accent)
-                        Text(tab.isPrivate ? "PRIVATE SESSION · HISTORY OFF" : "THE WEB. YOUR WAY.")
-                            .font(.caption2.weight(.semibold)).tracking(2.1)
-                            .foregroundStyle(.secondary)
+                        if tab.isPrivate {
+                            Text("PRIVATE SESSION · HISTORY OFF")
+                                .font(.caption2.weight(.semibold)).tracking(2.1)
+                                .foregroundStyle(.secondary)
+                        }
                     }.padding(.top, 28)
                     Button(action: beginSearch) {
                         HStack(spacing: 11) {
@@ -423,7 +432,7 @@ private struct BrowserPage: View {
                         Label("Import bookmarks & saved accounts", systemImage: "square.and.arrow.down")
                             .font(.caption).foregroundStyle(.secondary)
                     }
-                }.padding(.horizontal, 24).padding(.bottom, 36)
+                }.padding(.horizontal, 24).padding(.bottom, 110)
                     .frame(maxWidth: .infinity)
             }.scrollIndicators(.hidden)
         }
