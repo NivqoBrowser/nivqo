@@ -72,7 +72,7 @@ private struct BrowserPage: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var accent: Color { Color(spaceHex: browser.activeSpace.hex) }
-    private var isHome: Bool { tab.url.flatMap { safeWebURL($0.absoluteString) } == nil }
+    private var isHome: Bool { tab.showsHome }
     private var compact: Bool {
         tab.hidesChrome && !isHome && !editingAddress && !websiteKeyboardVisible && !voiceOver
     }
@@ -249,6 +249,7 @@ private struct BrowserPage: View {
             Button(tab.isLoading ? "Stop loading" : "Reload page", systemImage: tab.isLoading ? "xmark" : "arrow.clockwise") {
                 if tab.isLoading { tab.stopLoading() } else { tab.retryPage() }
             }.disabled(isHome)
+            Button("NIVQO home", systemImage: "house") { tab.goHome() }.disabled(isHome)
             Button("New tab", systemImage: "plus") { browser.newTab() }
             Button("New private tab", systemImage: "eye.slash") { browser.newTab(privateMode: true) }
             Button("Save bookmark", systemImage: "bookmark") { browser.bookmarkCurrent() }.disabled(isHome || tab.isPrivate)
