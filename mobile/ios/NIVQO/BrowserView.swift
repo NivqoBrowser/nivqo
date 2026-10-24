@@ -495,9 +495,65 @@ private struct NIVQOTabOverview: View {
     private var filteredTabs: [BrowserTab] {
         browser.visibleTabs.filter { $0.isPrivate == showingPrivate }
     }
+
+    // Changing the Space keeps the tab grid open, instead of forcing the user
+    // to return to the webpage between Personal, Work, Gaming and Shopping.
+    private func selectSpace(_ space: BrowserSpace) {
+        guard space.id != browser.activeSpaceID else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            browser.switchSpace(space.id)
+            showingPrivate = browser.selected.isPrivate
+        }
+    }
+
+    private func moveSpace(_ direction: Int) {
+        guard let index = browser.spaces.firstIndex(where: { $0.id == browser.activeSpaceID }) else { return }
+        let target = index + direction
+        guard browser.spaces.indices.contains(target) else { return }
+        selectSpace(browser.spaces[target])
+    }
+
+    private var spaceSwitcher: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 9) {
+                ForEach(browser.spaces) { space in
+                    let selected = space.id == browser.activeSpaceID
+                    Button { selectSpace(space) } label: {
+                        HStack(spacing: 7) {
+                            Circle().fill(Color(spaceHex: space.hex)).frame(width: 9, height: 9)
+                            Text(space.name)
+                                .font(.subheadline.weight(selected ? .semibold : .medium))
+                            Text("\(browser.tabs.filter { $0.spaceID == space.id }.count)")
+                                .font(.caption2.monospacedDigit())
+                                .foregroundStyle(selected ? Color.white : Color.white.opacity(0.62))
+                        }
+                        .foregroundStyle(selected ? Color.white : Color.white.opacity(0.8))
+                        .padding(.horizontal, 12).frame(minHeight: 44)
+                        .background(
+                            selected ? Color(spaceHex: space.hex).opacity(0.20) : Color.nivqoPanel,
+                            in: Capsule()
+                        )
+                        .overlay {
+                            Capsule().strokeBorder(
+                                selected ? Color(spaceHex: space.hex) : Color.white.opacity(0.08),
+                                lineWidth: selected ? 1.5 : 1
+                            )
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("\(space.name) Space, \(browser.tabs.filter { $0.spaceID == space.id }.count) tabs")
+                    .accessibilityIdentifier("spaceTab-\(space.id)")
+                }
+            }
+            .padding(.horizontal, 18)
+        }
+        .accessibilityIdentifier("tabSpaceSwitcher")
+    }
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                spaceSwitcher.padding(.top, 12)
                 Picker("Tab type", selection: $showingPrivate) {
                     Text("Tabs").tag(false)
                     Text("Private").tag(true)
@@ -531,16 +587,38 @@ private struct NIVQOTabOverview: View {
                         }.padding(.horizontal, 18).padding(.vertical, 10)
                     }
                 }
+                .simultaneousGesture(
+                    DragGesture(minimumDistance: 55).onEnded { gesture in
+                        let dx = gesture.translation.width
+                        let dy = gesture.translation.height
+                        if abs(dx) > 85 && abs(dx) > abs(dy) * 1.5 {
+                            moveSpace(dx < 0 ? 1 : -1)
+                        }
+                    }
+                )
                 HStack {
-                    HStack(spacing: 6) {
-                        Circle().fill(accent).frame(width: 7, height: 7)
-                        Text(browser.activeSpace.name).font(.caption)
-                    }.foregroundStyle(accent)
+                    Menu {
+                        ForEach(browser.spaces) { space in
+                            Button { selectSpace(space) } label: {
+                                Label(space.name, systemImage: space.id == browser.activeSpaceID ? "checkmark.circle.fill" : "circle")
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Circle().fill(accent).frame(width: 8, height: 8)
+                            Text(browser.activeSpace.name).font(.subheadline.weight(.medium))
+                            Image(systemName: "chevron.up.chevron.down").font(.caption2)
+                        }
+                        .foregroundStyle(accent)
+                        .frame(minHeight: 44)
+                    }
+                    .accessibilityLabel("Choose browsing Space")
                     Spacer()
                     Text("\(filteredTabs.count) \(showingPrivate ? "private " : "")tabs")
                         .font(.caption).foregroundStyle(.secondary)
                     Spacer()
                     Button("Done") { isPresented = false }.foregroundStyle(accent)
+                        .frame(minHeight: 44)
                 }
                 .padding(.horizontal, 23).frame(minHeight: 55)
                 .background(Color.nivqoPanel.opacity(0.8))
@@ -556,8 +634,10 @@ private struct NIVQOTabOverview: View {
                         .accessibilityLabel("New tab")
                 }
             }
-        }.tint(accent)
-            .accessibilityIdentifier("nivqoTabOverview")
+        }
+        .tint(accent)
+        .onAppear { showingPrivate = browser.selected.isPrivate }
+        .accessibilityIdentifier("nivqoTabOverview")
     }
 }
 
