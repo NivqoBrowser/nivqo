@@ -7,6 +7,9 @@ struct BrowserPanels: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @State private var name = ""
+    @State private var editingSpace: BrowserSpace?
+    @State private var deletingSpace: BrowserSpace?
+    @State private var editedName = ""
     @State private var picker = false
     @State private var passwords = false
     @State private var preview: BrowserImport?
@@ -45,6 +48,31 @@ struct BrowserPanels: View {
             .onChange(of: scenePhase) { phase in if phase == .background { preview = nil; reading = "" } }
             .alert("NIVQO", isPresented: Binding(get: { message != nil }, set: { if !$0 { message = nil } })) { Button("OK") { message = nil } } message: { Text(message ?? "") }
             .confirmationDialog("Clear website data and close all tabs in every Space? Saved accounts and bookmarks remain.", isPresented: $clear, titleVisibility: .visible) { Button("Clear website data", role: .destructive) { browser.clearWebsiteData() } }
+            .alert("Rename Space", isPresented: Binding(
+                get: { editingSpace != nil },
+                set: { if !$0 { editingSpace = nil } }
+            )) {
+                TextField("Space name", text: $editedName)
+                Button("Save") {
+                    if let space = editingSpace { browser.renameSpace(space.id, to: editedName) }
+                    editingSpace = nil
+                }
+                Button("Cancel", role: .cancel) { editingSpace = nil }
+            } message: {
+                Text("Names can be up to 32 characters. Tabs and saved data stay in this Space.")
+            }
+            .confirmationDialog("Delete \(deletingSpace?.name ?? "Space")?", isPresented: Binding(
+                get: { deletingSpace != nil },
+                set: { if !$0 { deletingSpace = nil } }
+            ), titleVisibility: .visible) {
+                Button("Delete Space and its data", role: .destructive) {
+                    if let space = deletingSpace { perform { try browser.deleteSpace(space.id) } }
+                    deletingSpace = nil
+                }
+                Button("Cancel", role: .cancel) { deletingSpace = nil }
+            } message: {
+                Text("This deletes that Space's tabs, bookmarks, history, saved accounts and website data. Other Spaces are unaffected. This cannot be undone.")
+            }
             .confirmationDialog("Remove this saved account from NIVQO?", isPresented: Binding(get: { removeAccount != nil }, set: { if !$0 { removeAccount = nil } }), titleVisibility: .visible) {
                 Button("Remove account", role: .destructive) { if let account = removeAccount { perform { try browser.deleteAccount(account.id) } }; removeAccount = nil }
             }
@@ -52,42 +80,79 @@ struct BrowserPanels: View {
     }
     private var spaces: some View {
         Group {
-            Section("Choose a Space") {
+            Section("Your Spaces") {
                 ForEach(browser.spaces) { space in
-                    Button {
-                        browser.switchSpace(space.id)
-                        dismiss()
-                    } label: {
-                        HStack(spacing: 15) {
-                            Image(systemName: space.id == "work" ? "briefcase.fill" :
-                                    space.id == "gaming" ? "gamecontroller.fill" :
-                                    space.id == "shopping" ? "bag.fill" : "person.fill")
-                                .font(.title3)
-                                .foregroundStyle(Color(spaceHex: space.hex))
-                                .frame(width: 44, height: 44)
-                                .background(Color(spaceHex: space.hex).opacity(0.15),
-                                            in: RoundedRectangle(cornerRadius: 13))
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text(space.name).font(.headline).foregroundStyle(.primary)
-                                Text("\(browser.tabs.filter { $0.spaceID == space.id }.count) tabs · \(browser.bookmarks.filter { ($0.spaceID ?? "personal") == space.id }.count) bookmarks")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer(minLength: 0)
-                            if space.id == browser.activeSpaceID {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(Color(spaceHex: space.hex))
-                            } else {
-                                Image(systemName: "chevron.right")
-                                    .font(.caption).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack(spacing: 12) {
+                            Button {
+                                browser.switchSpace(space.id)
+                                dismiss()
+                            } label: {
+                                HStack(spacing: 12) {
+                                    Image(systemName: space.id == "work" ? "briefcase.fill" :
+                                            space.id == "gaming" ? "gamecontroller.fill" :
+                                            space.id == "shopping" ? "bag.fill" : "person.fill")
+                                        .foregroundStyle(Color(spaceHex: space.hex))
+                                        .frame(width: 42, height: 42)
+                                        .background(Color(spaceHex: space.hex).opacity(0.16),
+                                                    in: RoundedRectangle(cornerRadius: 12))
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(space.name).font(.headline).foregroundStyle(.primary)
+                                        Text("\(browser.tabs.filter { $0.spaceID == space.id }.count) tabs · \(browser.bookmarks.filter { ($0.spaceID ?? "personal") == space.id }.count) bookmarks")
+                                            .font(.caption).foregroundStyle(.secondary)
+                                    }
+                                    Spacer()
+                                    if space.id == browser.activeSpaceID {
+                                        Image(systemName: "checkmark.circle.fill")
+                                            .foregroundStyle(Color(spaceHex: space.hex))
+                                    }
+                                }.contentShape(Rectangle())
+                            }.buttonStyle(.plain).accessibilityLabel("Open \(space.name) Space")
+                            Menu {
+                                Button("Rename", systemImage: "pencil") {
+                                    editedName = space.name
+                                    editingSpace = space
+                                }
+                                if space.id != "personal" {
+                                    Button("Delete Space", systemImage: "trash", role: .destructive) {
+                                        deletingSpace = space
+                                    }
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                                    .font(.title3).frame(width: 44, height: 44)
+                            }.accessibilityLabel("Manage \(space.name) Space")
+                        }
+                        HStack(spacing: 9) {
+                            Text("Colour").font(.caption).foregroundStyle(.secondary)
+                            Spacer()
+                            ForEach(SpacePalette.choices, id: \.hex) { choice in
+                                let used = browser.spaces.contains { $0.id != space.id && $0.hex == choice.hex }
+                                Button { browser.recolorSpace(space.id, to: choice.hex) } label: {
+                                    Circle().fill(Color(spaceHex: choice.hex))
+                                        .frame(width: 20, height: 20)
+                                        .overlay {
+                                            Circle().strokeBorder(space.hex == choice.hex ? Color.white : Color.clear, lineWidth: 2)
+                                        }
+                                        .frame(width: 25, height: 34)
+                                        .opacity(used ? 0.28 : 1)
+                                }
+                                .disabled(used)
+                                .accessibilityLabel("\(choice.name) for \(space.name)")
                             }
                         }
-                        .padding(.vertical, 5)
-                        .contentShape(Rectangle())
-                    }.buttonStyle(.plain)
+                    }
+                    .padding(.vertical, 7)
                 }
             }
-            Section("Add a Space") { TextField("Name, e.g. Travel", text: $name); Button("Create Space") { browser.addSpace(name); name = "" } }
-            Section { Text("Each Space has separate persistent cookies, website storage and cache. Bookmarks, history and saved accounts are tagged by Space. Private tabs share a temporary session only within their Space; closing its last private tab releases that session.").font(.footnote).foregroundStyle(.secondary) }
+            Section("Add a Space") {
+                TextField("Name, e.g. Travel", text: $name)
+                Button("Create Space") { browser.addSpace(name); name = "" }
+            }
+            Section {
+                Text("Rename or recolour a Space without changing its browsing data. Personal is the permanent base Space; all other Spaces can be deleted with confirmation. Each Space keeps separate cookies, history and bookmarks.")
+                    .font(.footnote).foregroundStyle(.secondary)
+            }
         }
     }
     private var imports: some View {
