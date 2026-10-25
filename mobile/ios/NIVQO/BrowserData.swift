@@ -12,6 +12,36 @@ struct BrowserSpace: Identifiable, Codable {
         BrowserSpace(id: "shopping", name: "Shopping", hex: "61d7ac", dataID: UUID(uuidString: "9F483849-40D2-4548-B115-911B50F00A03")!)
     ]
 }
+// Stable, independently editable Space colours. Keep the palette and the
+// validation here so both the iPhone UI and Swift package tests use the same rules.
+enum SpacePalette {
+    static let choices: [(name: String, hex: String)] = [
+        ("Cyan", "27c9ff"), ("Violet", "8a83ff"), ("Pink", "ff5da8"),
+        ("Mint", "61d7ac"), ("Orange", "ffa36d"), ("Yellow", "ffcf53"),
+        ("Blue", "4285ff"), ("Teal", "1fc9bc"), ("Red", "fc6270"),
+        ("Purple", "bf79ff"), ("Lime", "a8db63"), ("Coral", "ff8b90")
+    ]
+
+    static func isAvailable(_ hex: String, in spaces: [BrowserSpace], excluding id: String? = nil) -> Bool {
+        choices.contains { $0.hex == hex } &&
+        !spaces.contains { $0.id != id && $0.hex.caseInsensitiveCompare(hex) == .orderedSame }
+    }
+
+    static func nextAvailable(in spaces: [BrowserSpace]) -> String {
+        choices.first { isAvailable($0.hex, in: spaces) }?.hex ?? choices[0].hex
+    }
+
+    static func normalizedName(_ raw: String) -> String {
+        raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func validName(_ raw: String, in spaces: [BrowserSpace], excluding id: String? = nil) -> Bool {
+        let value = normalizedName(raw)
+        return !value.isEmpty && value.count <= 32 &&
+            !spaces.contains { $0.id != id && $0.name.caseInsensitiveCompare(value) == .orderedSame }
+    }
+}
+
 struct HistoryItem: Identifiable, Codable {
     var id = UUID()
     var title: String
