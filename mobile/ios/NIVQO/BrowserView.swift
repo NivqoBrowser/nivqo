@@ -305,73 +305,125 @@ private struct BrowserPage: View {
         .accessibilityLabel("Browser menu").accessibilityIdentifier("browserMenu")
     }
 
-    // Search terms are suggested from the current Space, never from URL visits.
+    // A bounded, keyboard-safe address editor. The search history header and
+    // deletion controls remain visible while typing, including on small iPhones.
     private var searchMode: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 10) {
-                HStack(spacing: 10) {
-                    Image(systemName: "magnifyingglass").foregroundStyle(accent)
+            HStack(spacing: 8) {
+                HStack(spacing: 9) {
+                    Image(systemName: "magnifyingglass")
+                        .font(.subheadline)
+                        .foregroundStyle(accent)
                     NIVQOAddressField(text: addressText, selectAllOnFocus: editingCurrentURL,
                                       onSubmit: runSearch)
                         .id(addressSession)
-                        .frame(minHeight: 44)
+                        .frame(minWidth: 0, maxWidth: .infinity)
+                        .frame(height: 44)
                         .accessibilityIdentifier("addressEditor")
                     if !address.isEmpty {
-                        Button { address = ""; editingCurrentURL = false } label: {
+                        Button {
+                            address = ""
+                            editingCurrentURL = false
+                        } label: {
                             Image(systemName: "xmark.circle.fill")
+                                .font(.subheadline)
                                 .foregroundStyle(.secondary)
-                                .frame(minWidth: 30, minHeight: 40)
-                        }.accessibilityLabel("Clear search text")
+                                .frame(width: 34, height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Clear search text")
                     }
                 }
-                .padding(.horizontal, 14).frame(minHeight: 49)
-                .background(Color.nivqoPanel, in: Capsule())
+                .padding(.horizontal, 12)
+                .frame(minWidth: 0, maxWidth: .infinity)
+                .frame(height: 50)
+                .background(Color.nivqoPanel.opacity(0.85),
+                            in: RoundedRectangle(cornerRadius: 16))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 16)
+                        .strokeBorder(accent.opacity(0.16), lineWidth: 1)
+                }
                 Button("Cancel", action: endSearch)
-                    .font(.subheadline.weight(.medium)).frame(minHeight: 44)
+                    .font(.subheadline.weight(.medium))
+                    .lineLimit(1)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(minHeight: 44)
+                    .accessibilityIdentifier("cancelAddressEditing")
             }
-            .padding(.horizontal, 16).padding(.top, 16).padding(.bottom, 12)
+            .frame(height: 52)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+            .padding(.bottom, 8)
+
+            if !tab.isPrivate {
+                HStack(spacing: 8) {
+                    Text(address.isEmpty ? "Recent Searches" : "Matching Searches")
+                        .font(.subheadline.weight(.semibold))
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                    if !browser.visibleSearchHistory.isEmpty {
+                        Button("Clear All") { browser.clearSearchHistory() }
+                            .font(.subheadline.weight(.medium))
+                            .foregroundStyle(accent)
+                            .fixedSize(horizontal: true, vertical: false)
+                            .frame(minHeight: 44)
+                            .accessibilityIdentifier("clearRecentSearches")
+                    }
+                }
+                .padding(.horizontal, 20)
+                .padding(.top, 4)
+                .padding(.bottom, 2)
+            }
+
             ScrollView {
-                VStack(alignment: .leading, spacing: 22) {
+                VStack(alignment: .leading, spacing: 18) {
                     if !tab.isPrivate {
                         VStack(spacing: 0) {
-                            HStack {
-                                Text(address.isEmpty ? "Recent Searches" : "Matching Searches")
-                                    .font(.subheadline.weight(.semibold))
-                                Spacer()
-                                if address.isEmpty && !browser.visibleSearchHistory.isEmpty {
-                                    Button("Clear All") { browser.clearSearchHistory() }
-                                        .font(.caption.weight(.medium)).foregroundStyle(accent)
-                                        .accessibilityIdentifier("clearRecentSearches")
-                                }
-                            }.padding(.bottom, 10)
                             if suggestions.isEmpty {
                                 Text(address.isEmpty ? "Searches in this Space will appear here." : "No matching previous searches.")
-                                    .font(.subheadline).foregroundStyle(.secondary)
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(.vertical, 12)
                             }
                             ForEach(suggestions) { item in
-                                HStack(spacing: 12) {
+                                HStack(spacing: 2) {
                                     Button { runSearch(item.query) } label: {
                                         HStack(spacing: 12) {
-                                            Image(systemName: "clock.arrow.circlepath").foregroundStyle(accent)
-                                            Text(item.query).foregroundStyle(.primary).lineLimit(1)
-                                            Spacer(minLength: 0)
+                                            Image(systemName: "clock.arrow.circlepath")
+                                                .foregroundStyle(accent)
+                                            Text(item.query)
+                                                .foregroundStyle(.primary)
+                                                .lineLimit(1)
+                                                .truncationMode(.tail)
+                                                .frame(maxWidth: .infinity, alignment: .leading)
                                         }
-                                        .frame(minHeight: 49).contentShape(Rectangle())
-                                    }.buttonStyle(.plain)
+                                        .frame(minHeight: 50)
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .frame(minWidth: 0, maxWidth: .infinity, alignment: .leading)
                                     Button { browser.removeSearch(item.id) } label: {
-                                        Image(systemName: "xmark")
-                                            .font(.caption).foregroundStyle(.secondary)
-                                            .frame(width: 44, height: 44)
-                                    }.accessibilityLabel("Remove search \(item.query)")
+                                        Image(systemName: "xmark.circle")
+                                            .font(.body)
+                                            .foregroundStyle(.secondary)
+                                            .frame(width: 44, height: 50)
+                                            .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .frame(width: 44)
+                                    .accessibilityLabel("Delete recent search \(item.query)")
+                                    .accessibilityIdentifier("removeRecentSearch")
                                 }
-                                Divider().overlay(.white.opacity(0.05))
+                                .frame(maxWidth: .infinity)
+                                Divider().overlay(Color.white.opacity(0.06))
                             }
                         }
                     } else {
                         Label("Private browsing doesn't save searches.", systemImage: "eye.slash")
-                            .foregroundStyle(.secondary).font(.subheadline)
+                            .foregroundStyle(.secondary)
+                            .font(.subheadline)
+                            .padding(.vertical, 8)
                     }
                     if !isHome, let url = tab.url {
                         Button {
@@ -384,14 +436,21 @@ private struct BrowserPage: View {
                         }
                     }
                     if address.isEmpty {
-                        VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 14) {
                             Text("Popular Sites").font(.subheadline.weight(.semibold))
                             shortcutsGrid
                         }
                     }
-                }.padding(.horizontal, 22).padding(.top, 14)
-            }.scrollDismissesKeyboard(.interactively)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 20)
+                .padding(.top, 2)
+                .padding(.bottom, 16)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .scrollDismissesKeyboard(.interactively)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.nivqoBackground)
         .accessibilityIdentifier("nivqoSearchMode")
     }
@@ -781,6 +840,15 @@ private struct NIVQOAddressField: UIViewRepresentable {
     func updateUIView(_ field: UITextField, context: Context) {
         context.coordinator.parent = self
         if field.text != text { field.text = text }
+    }
+
+    // UITextField's unconstrained UIKit intrinsic size can otherwise expand
+    // the surrounding SwiftUI HStack into a giant capsule when the keyboard
+    // appears. Explicitly tell SwiftUI this is a single-line, 44-pt field.
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextField,
+                      context: Context) -> CGSize? {
+        CGSize(width: max(1, proposal.width ?? uiView.intrinsicContentSize.width),
+               height: 44)
     }
 
     final class Coordinator: NSObject, UITextFieldDelegate {
