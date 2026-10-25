@@ -15,11 +15,12 @@ struct BrowserSpace: Identifiable, Codable {
 // Stable, independently editable Space colours. Keep the palette and the
 // validation here so both the iPhone UI and Swift package tests use the same rules.
 enum SpacePalette {
-    static let choices: [(name: String, hex: String)] = [
-        ("Cyan", "27c9ff"), ("Violet", "8a83ff"), ("Pink", "ff5da8"),
-        ("Mint", "61d7ac"), ("Orange", "ffa36d"), ("Yellow", "ffcf53"),
-        ("Blue", "4285ff"), ("Teal", "1fc9bc"), ("Red", "fc6270"),
-        ("Purple", "bf79ff"), ("Lime", "a8db63"), ("Coral", "ff8b90")
+    struct Choice: Identifiable { let name: String; let hex: String; var id: String { hex } }
+    static let choices: [Choice] = [
+        Choice(name: "Cyan", hex: "27c9ff"), Choice(name: "Violet", hex: "8a83ff"), Choice(name: "Pink", hex: "ff5da8"),
+        Choice(name: "Mint", hex: "61d7ac"), Choice(name: "Orange", hex: "ffa36d"), Choice(name: "Yellow", hex: "ffcf53"),
+        Choice(name: "Blue", hex: "4285ff"), Choice(name: "Teal", hex: "1fc9bc"), Choice(name: "Red", hex: "fc6270"),
+        Choice(name: "Purple", hex: "bf79ff"), Choice(name: "Lime", hex: "a8db63"), Choice(name: "Coral", hex: "ff8b90")
     ]
 
     static func isAvailable(_ hex: String, in spaces: [BrowserSpace], excluding id: String? = nil) -> Bool {
