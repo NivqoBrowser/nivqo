@@ -64,7 +64,7 @@ private struct BrowserPage: View {
     let clearData: () -> Void
     @State private var address = ""
     @State private var editingAddress = false
-    @FocusState private var addressFocused: Bool
+    @State private var addressSession = UUID()
     @State private var editingCurrentURL = false
     @State private var websiteKeyboardVisible = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -108,7 +108,7 @@ private struct BrowserPage: View {
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: compact)
         .onChange(of: editingAddress) { _, editing in
-            if editing { tab.setChromeHidden(false); addressFocused = true }
+            if editing { tab.setChromeHidden(false) }
         }
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
             websiteKeyboardVisible = true
@@ -122,16 +122,43 @@ private struct BrowserPage: View {
         } message: { Text(tab.message ?? "") }
     }
 
-    private func beginSearch() {
-        address = ""
-        editingCurrentURL = false
+    private var addressText: Binding<String> {
+        Binding(
+            get: { address },
+            set: { newValue in
+                address = newValue
+                // Once typing begins, filter saved search terms rather than
+                // treating the edit as an unchanged full website URL.
+                if editingCurrentURL && newValue != tab.url?.absoluteString {
+                    editingCurrentURL = false
+                }
+            }
+        )
+    }
+    private func beginSearch(prefill: String? = nil) {
+        let currentURL = !isHome ? tab.url?.absoluteString : nil
+        address = prefill ?? currentURL ?? ""
+        editingCurrentURL = prefill == nil && currentURL != nil
+        addressSession = UUID()
         editingAddress = true
         tab.setChromeHidden(false)
     }
     private func endSearch() {
-        addressFocused = false
         editingAddress = false
         editingCurrentURL = false
+    }
+    private func pasteIntoAddress() {
+        guard let pasted = UIPasteboard.general.string, !pasted.isEmpty else { return }
+        if editingAddress {
+            addressText.wrappedValue = pasted
+        } else {
+            beginSearch(prefill: pasted)
+        }
+    }
+    private func pasteAndGo() {
+        guard let pasted = UIPasteboard.general.string,
+              !pasted.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        runSearch(pasted)
     }
     private func runSearch(_ query: String) {
         guard !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
@@ -140,7 +167,7 @@ private struct BrowserPage: View {
     }
 
     private var addressPill: some View {
-        Button(action: beginSearch) {
+        Button { beginSearch() } label: {
             HStack(spacing: 7) {
                 Image(systemName: tab.isPrivate ? "eye.slash" : (isHome ? "magnifyingglass" : "globe"))
                     .foregroundStyle(accent).font(.footnote)
@@ -155,6 +182,15 @@ private struct BrowserPage: View {
         .buttonStyle(.plain)
         .accessibilityLabel(isHome ? "Search or enter a website" : "Search or edit address, \(domain)")
         .accessibilityIdentifier("addressPill")
+        .contextMenu {
+            if !isHome, let url = tab.url {
+                Button("Copy Link", systemImage: "doc.on.doc") {
+                    UIPasteboard.general.string = url.absoluteString
+                }
+            }
+            Button("Paste", systemImage: "doc.on.clipboard", action: pasteIntoAddress)
+            Button("Paste & Go", systemImage: "arrow.right", action: pasteAndGo)
+        }
     }
 
     @ViewBuilder private func expandedDock(width: CGFloat) -> some View {
@@ -275,11 +311,10 @@ private struct BrowserPage: View {
             HStack(spacing: 10) {
                 HStack(spacing: 10) {
                     Image(systemName: "magnifyingglass").foregroundStyle(accent)
-                    TextField("Search or enter a website", text: $address)
-                        .keyboardType(.webSearch).textInputAutocapitalization(.never)
-                        .autocorrectionDisabled().submitLabel(.go)
-                        .focused($addressFocused)
-                        .onSubmit { runSearch(address) }
+                    NIVQOAddressField(text: addressText, selectAllOnFocus: editingCurrentURL,
+                                      onSubmit: runSearch)
+                        .id(addressSession)
+                        .frame(minHeight: 44)
                         .accessibilityIdentifier("addressEditor")
                     if !address.isEmpty {
                         Button { address = ""; editingCurrentURL = false } label: {
@@ -338,13 +373,11 @@ private struct BrowserPage: View {
                         Label("Private browsing doesn't save searches.", systemImage: "eye.slash")
                             .foregroundStyle(.secondary).font(.subheadline)
                     }
-                    if !isHome, let url = tab.url, !editingCurrentURL {
+                    if !isHome, let url = tab.url {
                         Button {
-                            editingCurrentURL = true
-                            address = url.absoluteString
-                            addressFocused = true
+                            UIPasteboard.general.string = url.absoluteString
                         } label: {
-                            Label("Edit current website address", systemImage: "link")
+                            Label("Copy current website link", systemImage: "doc.on.doc")
                                 .font(.subheadline)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .frame(minHeight: 44)
@@ -360,7 +393,6 @@ private struct BrowserPage: View {
             }.scrollDismissesKeyboard(.interactively)
         }
         .background(Color.nivqoBackground)
-        .onAppear { addressFocused = true }
         .accessibilityIdentifier("nivqoSearchMode")
     }
 
@@ -398,7 +430,7 @@ private struct BrowserPage: View {
                                 .foregroundStyle(.secondary)
                         }
                     }.padding(.top, 28)
-                    Button(action: beginSearch) {
+                    Button { beginSearch() } label: {
                         HStack(spacing: 11) {
                             Image(systemName: "magnifyingglass").foregroundStyle(accent)
                             Text("Search or enter a website").foregroundStyle(.secondary)
@@ -704,6 +736,63 @@ extension Color {
     init(spaceHex: String) {
         let value = UInt32(spaceHex, radix: 16) ?? 0x27c9ff
         self.init(red: Double((value >> 16) & 255)/255, green: Double((value >> 8) & 255)/255, blue: Double(value & 255)/255)
+    }
+}
+
+
+private struct NIVQOAddressField: UIViewRepresentable {
+    @Binding var text: String
+    let selectAllOnFocus: Bool
+    let onSubmit: (String) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIView(context: Context) -> UITextField {
+        let field = UITextField(frame: .zero)
+        field.delegate = context.coordinator
+        field.text = text
+        field.placeholder = "Search or enter a website"
+        field.textColor = .white
+        field.tintColor = UIColor(Color.nivqoCyan)
+        field.font = .preferredFont(forTextStyle: .body)
+        field.adjustsFontForContentSizeCategory = true
+        field.autocorrectionType = .no
+        field.autocapitalizationType = .none
+        field.keyboardType = .webSearch
+        field.returnKeyType = .go
+        field.clearButtonMode = .never
+        field.accessibilityIdentifier = "addressEditor"
+        field.addTarget(context.coordinator, action: #selector(Coordinator.didEdit(_:)), for: .editingChanged)
+
+        // Native UITextField supports Copy, Cut, Paste, Select All and selection
+        // handles. On a webpage, select the entire URL when editing begins.
+        DispatchQueue.main.async { [weak field] in
+            guard let field = field else { return }
+            field.becomeFirstResponder()
+            if selectAllOnFocus {
+                let beginning = field.beginningOfDocument
+                let end = field.endOfDocument
+                field.selectedTextRange = field.textRange(from: beginning, to: end)
+            }
+        }
+        return field
+    }
+
+    func updateUIView(_ field: UITextField, context: Context) {
+        context.coordinator.parent = self
+        if field.text != text { field.text = text }
+    }
+
+    final class Coordinator: NSObject, UITextFieldDelegate {
+        var parent: NIVQOAddressField
+        init(_ parent: NIVQOAddressField) { self.parent = parent }
+        @objc func didEdit(_ field: UITextField) {
+            parent.text = field.text ?? ""
+        }
+        func textFieldShouldReturn(_ field: UITextField) -> Bool {
+            parent.onSubmit(field.text ?? "")
+            return false
+        }
     }
 }
 
