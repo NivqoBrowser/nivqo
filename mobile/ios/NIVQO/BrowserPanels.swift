@@ -125,8 +125,9 @@ struct BrowserPanels: View {
                         }
                         HStack(spacing: 9) {
                             Text("Colour").font(.caption).foregroundStyle(.secondary)
-                            Spacer()
-                            ForEach(SpacePalette.choices, id: \.hex) { choice in
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                HStack(spacing: 5) {
+                            ForEach(SpacePalette.choices) { choice in
                                 let used = browser.spaces.contains { $0.id != space.id && $0.hex == choice.hex }
                                 Button { browser.recolorSpace(space.id, to: choice.hex) } label: {
                                     Circle().fill(Color(spaceHex: choice.hex))
@@ -139,6 +140,8 @@ struct BrowserPanels: View {
                                 }
                                 .disabled(used)
                                 .accessibilityLabel("\(choice.name) for \(space.name)")
+                            }
+                                }
                             }
                         }
                     }
