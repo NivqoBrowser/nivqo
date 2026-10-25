@@ -343,7 +343,7 @@ final class BrowserModel: ObservableObject {
         var preparedSpaces: [BrowserSpace] = Self.read("nivqo.spaces") ?? BrowserSpace.defaults
         // Migrate existing installs using local variables before self is initialized.
         // Never replace cookies, bookmarks, existing profiles, or their storage IDs.
-        if !preparedSpaces.contains(where: { $0.id == "gaming" }) {
+        if UserDefaults.standard.data(forKey: "nivqo.spaces") == nil && !preparedSpaces.contains(where: { $0.id == "gaming" }) {
             let gaming = BrowserSpace(id: "gaming", name: "Gaming", hex: "ff5da8",
                                       dataID: UUID(uuidString: "9F483849-40D2-4548-B115-911B50F00A04")!)
             let index = preparedSpaces.firstIndex(where: { $0.id == "shopping" }) ?? preparedSpaces.count
@@ -421,10 +421,70 @@ final class BrowserModel: ObservableObject {
     }
     func select(_ tab: BrowserTab) { activeSpaceID = tab.spaceID; selectedID = tab.id }
     func addSpace(_ name: String) {
-        let value = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !value.isEmpty, value.count <= 32, spaces.count < 12 else { notice = "Enter a name up to 32 characters. You can have 12 Spaces."; return }
-        let space = BrowserSpace(id: UUID().uuidString, name: value, hex: ["27c9ff","8a83ff","61d7ac","ffa36d"][spaces.count % 4], dataID: UUID())
-        spaces.append(space); persist(spaces, "nivqo.spaces"); switchSpace(space.id)
+        guard spaces.count < 12, SpacePalette.validName(name, in: spaces) else {
+            notice = "Enter a unique Space name up to 32 characters (maximum 12 Spaces)."; return
+        }
+        let space = BrowserSpace(id: UUID().uuidString, name: SpacePalette.normalizedName(name),
+                                 hex: SpacePalette.nextAvailable(in: spaces), dataID: UUID())
+        spaces.append(space)
+        persist(spaces, "nivqo.spaces")
+        switchSpace(space.id)
+    }
+
+    func renameSpace(_ id: String, to name: String) {
+        guard let index = spaces.firstIndex(where: { $0.id == id }),
+              SpacePalette.validName(name, in: spaces, excluding: id) else {
+            notice = "Choose a unique name between 1 and 32 characters."; return
+        }
+        spaces[index].name = SpacePalette.normalizedName(name)
+        persist(spaces, "nivqo.spaces")
+    }
+
+    func recolorSpace(_ id: String, to hex: String) {
+        guard let index = spaces.firstIndex(where: { $0.id == id }),
+              SpacePalette.isAvailable(hex, in: spaces, excluding: id) else {
+            notice = "That colour is already assigned to another Space."; return
+        }
+        spaces[index].hex = hex
+        persist(spaces, "nivqo.spaces")
+    }
+
+    // Deletion only affects the named Space. The Personal store is shared with
+    // legacy installations, so never delete that store or the last Space.
+    func deleteSpace(_ id: String) throws {
+        guard id != "personal", spaces.count > 1,
+              let doomed = spaces.first(where: { $0.id == id }) else {
+            notice = "Personal is the permanent base Space and cannot be deleted."; return
+        }
+        let remaining = spaces.first(where: { $0.id != id })!
+        let survivors = try PasswordVault.read().filter { $0.account.spaceID != id }
+        try PasswordVault.write(survivors)
+        accounts = survivors.map(\.account)
+        let doomedTabs = tabs.filter { $0.spaceID == id }
+        for tab in doomedTabs {
+            tab.close()
+            tabObservers.removeValue(forKey: tab.id)
+        }
+        tabs.removeAll { $0.spaceID == id }
+        lastTabBySpace.removeValue(forKey: id)
+        privateStores.removeValue(forKey: id)
+        bookmarks.removeAll { ($0.spaceID ?? "personal") == id }
+        history.removeAll { $0.spaceID == id }
+        searchHistory.removeAll { $0.spaceID == id }
+        spaces.removeAll { $0.id == id }
+        persist(spaces, "nivqo.spaces")
+        saveBookmarks()
+        persist(history, "nivqo.history")
+        persist(searchHistory, "nivqo.searchHistory.v1")
+        activeSpaceID = remaining.id
+        if let survivor = tabs.first(where: { $0.spaceID == remaining.id }) {
+            selectedID = survivor.id
+        } else {
+            newTab()
+        }
+        saveSession()
+        WKWebsiteDataStore(forIdentifier: doomed.dataID)
+            .removeData(ofTypes: WKWebsiteDataStore.allWebsiteDataTypes(), modifiedSince: .distantPast) {}
     }
     func search(_ input: String) {
         let value = input.trimmingCharacters(in: .whitespacesAndNewlines)
